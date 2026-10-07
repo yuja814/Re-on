@@ -4,7 +4,7 @@ import { SectionList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MomentCard } from '@/components/moment/moment-card';
-import { MOCK_MOMENTS } from '@/mocks/moments';
+import { useMoments } from '@/stores/moment-store';
 import type { Moment } from '@/types/moment';
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -58,7 +58,7 @@ function toSections(moments: Moment[]): TimelineSection[] {
 
 export default function MomentScreen() {
   const router = useRouter();
-  const sections = toSections(MOCK_MOMENTS);
+  const sections = toSections(useMoments());
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
