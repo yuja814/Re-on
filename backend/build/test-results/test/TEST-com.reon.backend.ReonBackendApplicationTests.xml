@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.reon.backend.ReonBackendApplicationTests" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-07T13:04:18.810Z" hostname="choiseunghwanui-MacBookAir.local" time="0.982">
+  <properties/>
+  <testcase name="contextLoads()" classname="com.reon.backend.ReonBackendApplicationTests" time="0.287"/>
+  <system-out><![CDATA[22:04:18.868 [Test worker] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.reon.backend.ReonBackendApplicationTests]: ReonBackendApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+22:04:18.906 [Test worker] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.reon.backend.ReonBackendApplication for test class com.reon.backend.ReonBackendApplicationTests
+22:04:18.932 [Test worker] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.reon.backend.ReonBackendApplicationTests]: ReonBackendApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+22:04:18.933 [Test worker] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.reon.backend.ReonBackendApplication for test class com.reon.backend.ReonBackendApplicationTests
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.1)
+
+2026-10-07T22:04:19.035+09:00  INFO 45422 --- [reon-backend] [    Test worker] c.r.backend.ReonBackendApplicationTests  : Starting ReonBackendApplicationTests using Java 21.0.12.1 with PID 45422 (started by choiseunghwan in /Users/choiseunghwan/리온/backend)
+2026-10-07T22:04:19.036+09:00  INFO 45422 --- [reon-backend] [    Test worker] c.r.backend.ReonBackendApplicationTests  : No active profile set, falling back to 1 default profile: "default"
+2026-10-07T22:04:19.501+09:00  INFO 45422 --- [reon-backend] [    Test worker] c.r.backend.ReonBackendApplicationTests  : Started ReonBackendApplicationTests in 0.545 seconds (process running for 0.996)
+]]></system-out>
+  <system-err><![CDATA[Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+WARNING: A Java agent has been loaded dynamically (/private/tmp/reon-gradle/caches/modules-2/files-2.1/net.bytebuddy/byte-buddy-agent/1.18.11/82212e5b3633e7a65fca8bec525762cfb6c9bae4/byte-buddy-agent-1.18.11.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+]]></system-err>
+</testsuite>
