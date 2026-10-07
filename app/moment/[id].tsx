@@ -5,16 +5,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SongInfoCard } from '@/components/moment/song-info-card';
-import { MOCK_MOMENTS } from '@/mocks/moments';
-
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-
-function formatDate(iso: string) {
-  const date = new Date(iso);
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}. ${month}. ${day}. (${WEEKDAYS[date.getDay()]})`;
-}
+import { useMoment } from '@/stores/moment-store';
+import { formatMomentDate } from '@/utils/date';
 
 type InfoRowProps = {
   icon: ComponentProps<typeof Ionicons>['name'];
@@ -34,7 +26,7 @@ function InfoRow({ icon, text }: InfoRowProps) {
 export default function MomentDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const moment = MOCK_MOMENTS.find((item) => item.id === id);
+  const moment = useMoment(id);
 
   const goBack = () => {
     if (router.canGoBack()) {
@@ -54,8 +46,12 @@ export default function MomentDetailScreen() {
         </Pressable>
 
         {moment ? (
-          // TODO: Moment 수정 화면(MO-03) 연결
-          <Pressable style={styles.editButton} hitSlop={8}>
+          <Pressable
+            style={styles.editButton}
+            onPress={() =>
+              router.push({ pathname: '/moment/edit/[id]', params: { id: moment.id } })
+            }
+            hitSlop={8}>
             <Text style={styles.editButtonText}>편집</Text>
           </Pressable>
         ) : null}
@@ -66,7 +62,7 @@ export default function MomentDetailScreen() {
           <SongInfoCard track={moment.track} />
 
           <View style={styles.infoList}>
-            <InfoRow icon="calendar-outline" text={formatDate(moment.createdAt)} />
+            <InfoRow icon="calendar-outline" text={formatMomentDate(new Date(moment.createdAt))} />
             <InfoRow icon="location-sharp" text={moment.location} />
             <InfoRow icon="pencil-outline" text={moment.memo} />
           </View>
