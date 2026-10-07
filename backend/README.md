@@ -1,98 +1,74 @@
-# Re-on
-Git 협업 방식
-1. 브랜치 생성
-  - main프로젝트의 branch 따기 -> 브랜치명 : development
-  - development branch의 각자 branch 따기 -> 브랜치명 : 이름(ex.Hong)
-  - vs 코드 열때도 자신의 이름이 들어간 브랜치 열기
+# Re:on Backend
 
-2. 개발 시
-  - 개발이 어느정도 진행되었다면 development브랜치로 merge request 하기
-    
-  if 실패(충돌) 시
-  - 다른 사람과 공통 폴더에서 동시 수정 후 merge하였을때 complete 충돌이 나는 경우가 생깁니다.
-  - 자신이 수정한 코드를 복사해 잠시 다른 곳에 옮겨두기
-  - 오류가 나는 파일을 discard 시키기
-  - 다시 pull 하기
-  - pull 해서 받은 파일에 자신이 수정한 곳 고치기
-  - run 돌려서 에러 확인
-  - 에러 없으면 push 후 merge
+Java 21 / Spring Boot 4.1.1 / Gradle Wrapper
 
-  *충돌 줄이는 법
-  - 작업 전 pull하고 자주 push하기
+구현: `POST /api/v1/music/resolve`. Auth/User, Moment CRUD, OAuth, Playlist는 아직 구현하지 않았습니다.
 
-  **중요**
-  - 반드시 development브랜치로 merge 시킬 때는
-    꼭 에러가 없는 상태를 확인하고 올려주세요.
+## 실행
 
-3. 개발 완료
-   - 개발이 완료되면 development 브랜치를 main프로젝트로 merge 하기
-   - main프로젝트가 정상적으로 돌아가는지 확인
-   - 정상적으로 돌아간다면 배포 및 나머지 branch 모두 제거
-  
-4. commit 규칙
-   - feat : 새로운 기능 추가
-   - fix : 버그 수정
-   - docs : 문서 수정
-   - style : 코드 스타일/포맷팅 수정 (세미콜론 누락, 들여쓰기 등 동작에 영향 없는 변경)
-   - refactor : 기능 변경 없는 코드 구조 개선
-   - test : 테스트 코드 작성, 수정
-   - chore : 빌드 업무, 프로젝트 설정 변경
-   - design : UI 디자인 변경
-=======
-# Welcome to your Expo app 👋
-
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
-
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+JDK 21을 설치하고 JAVA_HOME을 지정하세요. 이번 검증의 JDK는 `/tmp/reon-jdk21/Contents/Home`에 있으며 임시 폴더 정리 시 사라질 수 있습니다.
 
 ```bash
-npm run reset-project
+cd backend
+export JAVA_HOME=/tmp/reon-jdk21/Contents/Home
+export YOUTUBE_API_KEY='발급받은 키'
+./gradlew bootRun
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+YouTube Data API v3가 활성화된 Google Cloud 프로젝트의 API 키가 필요합니다. `.env.example`은 참고용이며 `.env`는 자동 로딩되지 않습니다. 키 없이 서버를 시작할 수 있지만 정상 링크 조회에는 503이 반환됩니다.
 
-### Other setup steps
+```bash
+curl -i -X POST http://localhost:8080/api/v1/music/resolve \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://music.youtube.com/watch?v=wJhWwt1OmT8&si=share"}'
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+응답: `videoId`, `title`, `channelTitle`, `thumbnailUrl`. 채널명을 아티스트로 정규화하지 않습니다. 썸네일이 없으면 null입니다. 시작 가이드 기준으로 기존 API 명세 v0.4의 `artist`와 `originalUrl`은 포함하지 않습니다.
 
-## Learn more
+HTTPS `music.youtube.com/watch`와 11자리 ID를 검증합니다. 공유 파라미터는 허용하고 중복 v, 외부 호스트, 잘못된 ID는 거부합니다. 고정된 Google videos.list 엔드포인트만 호출하며 연결 제한 3초, 읽기 제한 5초를 적용합니다.
 
-To learn more about developing your project with Expo, look at the following resources:
+| HTTP | code | 상황 |
+| --- | --- | --- |
+| 400 | INVALID_REQUEST | 빈 URL, 2048자 초과, 잘못된 JSON |
+| 400 | INVALID_YOUTUBE_MUSIC_URL | 잘못된 URL 또는 ID |
+| 404 | MUSIC_NOT_FOUND | 조회 가능한 영상 없음 |
+| 503 | YOUTUBE_API_NOT_CONFIGURED | 키 누락 |
+| 502 | YOUTUBE_API_ERROR | Google 오류, 연결 실패, 잘못된 외부 응답 |
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+오류는 `{ "code": "...", "message": "..." }` 형식입니다. 키 오류와 할당량 초과도 현재 502로 처리합니다.
 
-## Join the community
+## 테스트 / 빌드
 
-Join our community of developers creating universal apps.
+```bash
+./gradlew test
+./gradlew bootJar
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
->>>>>>> 0c9818f (Initial commit)
+24개 테스트로 URL 검증, DTO 응답, 외부 오류 및 요청 검증을 확인합니다. Google 호출은 모킹하며 실제 키를 사용하는 조회는 별도 확인이 필요합니다.
+
+## MySQL 프로필
+
+기본 음악 조회는 DB 없이 실행됩니다. JPA / MySQL 의존성은 포함되어 있습니다.
+
+```bash
+export DB_URL='jdbc:mysql://localhost:3306/reon'
+export DB_USERNAME='reon'
+export DB_PASSWORD='로컬 DB 비밀번호'
+./gradlew bootRun --args='--spring.profiles.active=mysql'
+```
+
+mysql 프로필은 `ddl-auto=validate`를 사용합니다. 다음 단계에서 User/Moment 엔티티와 스키마를 구현해야 합니다.
+
+## 구조
+
+- `music/controller`: HTTP 요청과 응답
+- `music/dto`: 요청·응답 DTO
+- `music/service/MusicService`: URL 검증 / videoId 추출
+- `music/service/YouTubeClient`: Google API 호출 / 메타데이터 변환
+- `global`: 공통 예외 처리
+
+## Git에 올리기
+
+`src`, `build.gradle`, `settings.gradle`, `gradlew`, `gradlew.bat`, `gradle/wrapper`, `.env.example`과 README를 올립니다. `build`, `.gradle`, `.idea`, `.env`, 키 파일은 올리지 않습니다. Wrapper JAR는 커밋에 필요합니다.
+
+복원 당시 잘못 들어온 backend의 Expo 복제 파일과 빌드 캐시를 백업 폴더로 옮겼습니다. Git에서 보이는 해당 파일 삭제는 의도된 변경입니다. 루트의 프론트엔드 파일은 유지했습니다.
