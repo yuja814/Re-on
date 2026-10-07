@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { SectionList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -57,6 +57,7 @@ function toSections(moments: Moment[]): TimelineSection[] {
 }
 
 export default function MomentScreen() {
+  const router = useRouter();
   const sections = toSections(MOCK_MOMENTS);
 
   return (
@@ -92,7 +93,12 @@ export default function MomentScreen() {
             </View>
 
             <View style={styles.cardWrapper}>
-              <MomentCard moment={item.moment} />
+              <MomentCard
+                moment={item.moment}
+                onPress={() =>
+                  router.push({ pathname: '/moment/[id]', params: { id: item.moment.id } })
+                }
+              />
             </View>
           </View>
         )}
