@@ -3,15 +3,15 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
-    Image,
-    ImageBackground,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  ImageBackground,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function MemoryDetailScreen() {
@@ -36,8 +36,12 @@ export default function MemoryDetailScreen() {
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={28} color="#FFE680" />
             </TouchableOpacity>
+          </View>
+        </ImageBackground>
 
-            {/* 타이틀 및 날짜/뱃지 정보 */}
+        {/* 2. 앨범 상세 설명 영역 */}
+        <View style={styles.descriptionSection}>
+          {/* 타이틀 및 날짜/뱃지 정보 */}
             <View style={styles.heroBottomContent}>
               <Text style={styles.heroTitle}>NCT127과 함께한 7월</Text>
 
@@ -60,11 +64,6 @@ export default function MemoryDetailScreen() {
                 </View>
               </View>
             </View>
-          </View>
-        </ImageBackground>
-
-        {/* 2. 앨범 상세 설명 영역 */}
-        <View style={styles.descriptionSection}>
           <Text style={styles.albumDescription}>
             7월에는 NCT127의 음악을 많이 남겼어요.{"\n"}
             특히 저녁 시간과 체조경기장을 중심으로 기록이 이어졌고, 메모에서도 ‘공연’, ‘집 가는 길’처럼 비슷한 순간들이 반복해서 나타났어요.
@@ -81,12 +80,11 @@ export default function MemoryDetailScreen() {
           <View style={styles.timelineItem}>
             {/* 타임라인 노드 (동그라미 & 날짜) */}
             <View style={styles.nodeContainer}>
-              <View style={[styles.nodeDot, { backgroundColor: '#FFE680' }]} />
               <Text style={styles.nodeDateText}>07/03</Text>
             </View>
 
             {/* 카드 박스 */}
-            <View style={[styles.momentCard, { backgroundColor: '#FFE680' }]}>
+            <View style={[styles.momentCard]}>
               <Image
                 source={{
                   uri: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop',
@@ -104,11 +102,10 @@ export default function MemoryDetailScreen() {
           {/* Moment 2: 07/05 (회색) */}
           <View style={styles.timelineItem}>
             <View style={styles.nodeContainer}>
-              <View style={[styles.nodeDot, { backgroundColor: '#D9D9D9' }]} />
               <Text style={styles.nodeDateText}>07/05</Text>
             </View>
 
-            <View style={[styles.momentCard, { backgroundColor: '#D9D9D9' }]}>
+            <View style={[styles.momentCard]}>
               <Image
                 source={{
                   uri: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=400&auto=format&fit=crop',
@@ -125,11 +122,10 @@ export default function MemoryDetailScreen() {
           {/* Moment 3: 07/07 (노란색) */}
           <View style={styles.timelineItem}>
             <View style={styles.nodeContainer}>
-              <View style={[styles.nodeDot, { backgroundColor: '#FFE680' }]} />
               <Text style={styles.nodeDateText}>07/07</Text>
             </View>
 
-            <View style={[styles.momentCard, { backgroundColor: '#FFE680' }]}>
+            <View style={[styles.momentCard]}>
               <Image
                 source={{
                   uri: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop',
@@ -147,11 +143,10 @@ export default function MemoryDetailScreen() {
           {/* Moment 4: 07/27 (회색) */}
           <View style={styles.timelineItem}>
             <View style={styles.nodeContainer}>
-              <View style={[styles.nodeDot, { backgroundColor: '#D9D9D9' }]} />
               <Text style={styles.nodeDateText}>07/27</Text>
             </View>
 
-            <View style={[styles.momentCard, { backgroundColor: '#D9D9D9' }]}>
+            <View style={[styles.momentCard]}>
               <Image
                 source={{
                   uri: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=400&auto=format&fit=crop',
@@ -204,14 +199,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 242,
   },
-  heroOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    justifyContent: 'space-between',
-    paddingBottom: 20,
-  },
   backButton: {
     width: 40,
     height: 40,
@@ -231,21 +218,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-end',
   },
-  heroDateBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
   heroDateText: {
     fontSize: 13,
-    color: '#000000',
+    color: '#ffffff',
   },
   heroBadgesColumn: {
     gap: 6,
   },
   badgeItem: {
-    backgroundColor: '#FFE680',
+    backgroundColor: '#ffffeb00',
+    borderWidth: 1,
+    borderColor: '#ffffff',
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -254,7 +237,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#000000',
+    color: '#ffffff',
   },
 
   /* 2. Description */
@@ -316,15 +299,13 @@ const styles = StyleSheet.create({
   momentCard: {
     flex: 1,
     flexDirection: 'row',
-    borderTopLeftRadius: 15,
-    borderTopRightRadius: 5,
-    borderBottomLeftRadius: 15,
-    borderBottomRightRadius: 5,
+    backgroundColor: '#FFFFEB',
+    borderRadius: 16,
     overflow: 'hidden',
-    minHeight: 95,
+    minHeight: 85,
   },
   cardCoverImage: {
-    width: 90,
+    width: 80,
     height: '100%',
   },
   cardContent: {

@@ -26,9 +26,6 @@ export default function CreateMemoryScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.headerTitle}>Memory</Text>
-            <Text style={styles.headerSubtitle}>
-              음악이 이어준 나의 특별한 시간들
-            </Text>
           </View>
           <TouchableOpacity style={styles.addButton}>
             <Ionicons name="add" size={28} color="#FFFFFF" />
@@ -37,8 +34,7 @@ export default function CreateMemoryScreen() {
 
         {/* 노란색 메인 카드 영역 */}
         <View style={styles.mainCard}>
-          <Text style={styles.cardMainTitle}>새로운 Memory가</Text>
-          <Text style={styles.cardMainTitleRight}>생성되었어요.</Text>
+          <Text style={styles.cardMainTitle}>새로운 Memory가{'\n'}생성되었어요!</Text>
 
           {/* 카드 내부 흰색 앨범 박스 */}
           <View style={styles.innerCard}>
@@ -51,10 +47,9 @@ export default function CreateMemoryScreen() {
                 style={styles.albumCover}
               />
               {/* 13 moments 뱃지 */}
-              <View style={styles.momentsBadge}>
+              <View style={styles.TimelineBadge}>
                 <Text style={styles.momentsBadgeText}>
-                  <Text style={styles.momentsCount}>13 </Text>
-                  moments
+                  Timeline 
                 </Text>
               </View>
             </View>
@@ -63,14 +58,14 @@ export default function CreateMemoryScreen() {
             <Text style={styles.albumTitle}>NCT127과 함께한 7월</Text>
             <Text style={styles.albumDate}>2026.07.03 - 2026.07.21</Text>
           </View>
+          {/* 확인하기 버튼 */}
+          <TouchableOpacity style={styles.confirmButton} 
+            onPress={() => router.push('/memory/home')}
+          >
+            <Text style={styles.confirmButtonText}>확인하기</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* 확인하기 버튼 */}
-        <TouchableOpacity style={styles.confirmButton} 
-          onPress={() => router.push('/memory/home')}
-        >
-          <Text style={styles.confirmButtonText}>확인하기</Text>
-        </TouchableOpacity>
       </ScrollView>
 
       {/* 하단 탭 바 (일반 Bottom Tab) */}
@@ -118,7 +113,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 34,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#FFFFEB',
     letterSpacing: -0.5,
   },
   headerSubtitle: {
@@ -132,40 +127,22 @@ const styles = StyleSheet.create({
 
   /* Main Yellow Card */
   mainCard: {
-    backgroundColor: '#FFE680',
-    borderRadius: 28,
+    backgroundColor: '#FFFFEB',
+    borderRadius: 16,
     padding: 28,
     alignItems: 'center',
     marginTop: 24,
   },
   cardMainTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: '#000000',
     alignSelf: 'flex-start',
-  },
-  cardMainTitleRight: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#000000',
-    alignSelf: 'flex-end',
-    marginBottom: 16,
-  },
-  innerCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#000000',
-    paddingTop: 15,
-    paddingRight: 40,
-    paddingBottom: 18,
-    paddingLeft: 40,
-    width: '100%',
-    alignItems: 'center',
+    marginBottom: 25,
   },
   imageContainer: {
     position: 'relative',
-    width: '100%',
+    width: '70%',
     aspectRatio: 1,
     borderRadius: 16,
     overflow: 'hidden',
@@ -175,7 +152,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  momentsBadge: {
+  TimelineBadge: {
     position: 'absolute',
     top: 10,
     right: 30,
@@ -194,13 +171,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   albumTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: '#000000',
     marginBottom: 4,
   },
   albumDate: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666666',
   },
 
@@ -210,6 +187,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 16,
     alignItems: 'center',
+    width: '100%',
     marginTop: 20,
   },
   confirmButtonText: {

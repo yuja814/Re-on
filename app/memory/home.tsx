@@ -3,14 +3,14 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function CreateMemoryScreen() {
@@ -153,26 +153,26 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 
-  /* 메인 노란 카드 */
+  /* 앨범 카드 */
   mainCard: {
-    backgroundColor: '#FFE680',
+    backgroundColor: '#FFFFEB',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    borderRadius: 28,
+    borderRadius: 16,
     padding: 15,
     alignItems: 'center',
-    marginBottom: 22,
+    marginBottom: 14,
   },
   albumInfo: {
     flex: 1,
     marginRight: 16,
     alignSelf: 'stretch',
     justifyContent: 'flex-end',
-    marginBottom: 15,
+    marginBottom: 4,
 },
   imageContainer: {
     position: 'relative',
-    width: '38%',
+    width: '33%',
     aspectRatio: 1,
     borderRadius: 16,
     overflow: 'hidden',
@@ -183,16 +183,17 @@ const styles = StyleSheet.create({
   },
   momentsBadge: {
     position: 'absolute',
-    zIndex: 10,
-    top: 10,
-    right: 65,
-    backgroundColor: '#FFFFFF',
+    top: 50,
+    left: 5,
+    backgroundColor: '#ffffff1c',
+    borderWidth: 1,
+    borderColor: '#000000',
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
   momentsBadgeText: {
-    fontSize: 13,
+    fontSize: 9,
     color: '#000000',
   },
   momentsCount: {
