@@ -10,6 +10,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import java.time.Duration;
 import java.util.Map;
+import java.util.*;
+import java.util.function.Supplier;
 
 @Component
 public class YouTubePlaylistClient {
@@ -42,10 +44,39 @@ public class YouTubePlaylistClient {
         return result.path("id").asText();
     }
 
+    public List<String> videoIds(String token, String playlistId) {
+        var ids = new ArrayList<String>();
+        var pages = new HashSet<String>();
+        String page = "";
+        do {
+            if (!pages.add(page) || pages.size() > 100) { throw failure(); }
+            String currentPage = page;
+            var result = request(() -> http.get().uri(uri -> {
+                var query = uri.path("/playlistItems").queryParam("part", "snippet")
+                        .queryParam("playlistId", playlistId).queryParam("maxResults", 50);
+                if (!currentPage.isEmpty()) { query.queryParam("pageToken", currentPage); }
+                return query.build();
+            }).headers(headers -> headers.setBearerAuth(token)).retrieve().body(JsonNode.class));
+            if (result == null || !result.path("items").isArray()) { throw failure(); }
+            for (var item : result.path("items")) {
+                String id = item.path("snippet").path("resourceId").path("videoId").asText();
+                if (!id.matches("[A-Za-z0-9_-]{11}")) { throw failure(); }
+                ids.add(id);
+            }
+            var next = result.path("nextPageToken");
+            if (!next.isMissingNode() && !next.isNull() && !next.isString()) { throw failure(); }
+            page = next.isString() ? next.asText() : "";
+        } while (!page.isEmpty());
+        return List.copyOf(ids);
+    }
+
     private JsonNode post(String path, String token, Object body) {
+        return request(() -> http.post().uri(path).headers(headers -> headers.setBearerAuth(token))
+                .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class));
+    }
+    private JsonNode request(Supplier<JsonNode> call) {
         try {
-            return http.post().uri(path).headers(headers -> headers.setBearerAuth(token))
-                    .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class);
+            return call.get();
         } catch (RestClientResponseException exception) {
             String reason = "";
             try {

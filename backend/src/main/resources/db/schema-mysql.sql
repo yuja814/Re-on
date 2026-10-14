@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS playlist_exports (
     memory_id BIGINT NOT NULL,
     title VARCHAR(150) NOT NULL,
     playlist_id VARCHAR(128),
+    target_video_ids LONGTEXT,
     track_count INTEGER NOT NULL,
     status VARCHAR(20) NOT NULL,
     CONSTRAINT fk_playlist_export_user FOREIGN KEY (user_id) REFERENCES reon_users(id),

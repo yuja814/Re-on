@@ -30,6 +30,25 @@ class YouTubePlaylistClientTests {
                 .andRespond(withSuccess("{\"id\":\"item123\"}", MediaType.APPLICATION_JSON));
         client.addVideo("secret-token", "PL123", "wJhWwt1OmT8"); server.verify();
     }
+    @Test void readsAllPlaylistPagesInOrder() {
+        server.expect(requestTo("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=PL123&maxResults=50"))
+                .andExpect(method(HttpMethod.GET)).andExpect(header("Authorization", "Bearer token"))
+                .andRespond(withSuccess("{\"items\":[{\"snippet\":{\"resourceId\":{\"videoId\":\"wJhWwt1OmT8\"}}}],\"nextPageToken\":\"next\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=PL123&maxResults=50&pageToken=next"))
+                .andRespond(withSuccess("{\"items\":[{\"snippet\":{\"resourceId\":{\"videoId\":\"abcdefghijk\"}}}]}", MediaType.APPLICATION_JSON));
+        assertEquals(java.util.List.of("wJhWwt1OmT8", "abcdefghijk"), client.videoIds("token", "PL123"));
+        server.verify();
+    }
+    @Test void incompleteReadResponseNeverLooksLikeEmptyPlaylist() {
+        server.expect(anything()).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        assertThrows(ApiException.class, () -> client.videoIds("token", "PL123"));
+    }
+    @Test void repeatingPageTokenStopsRecoveryRead() {
+        for (int i = 0; i < 2; i++) {
+            server.expect(anything()).andRespond(withSuccess("{\"items\":[],\"nextPageToken\":\"next\"}", MediaType.APPLICATION_JSON));
+        }
+        assertThrows(ApiException.class, () -> client.videoIds("token", "PL123")); server.verify();
+    }
     @Test void rejectedTokenRequiresReauthWithoutExposingProviderBody() {
         server.expect(anything()).andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("secret-token"));
         var error = assertThrows(ApiException.class, () -> client.create("secret-token", "title", ""));

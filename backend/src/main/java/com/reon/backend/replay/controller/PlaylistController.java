@@ -10,6 +10,11 @@ import org.springframework.web.bind.annotation.*;
 public class PlaylistController {
     private final PlaylistService playlists;
     public PlaylistController(PlaylistService playlists) { this.playlists = playlists; }
+    @PostMapping("/{memoryId}/playlist/resume")
+    public ResponseEntity<PlaylistResponse> resume(@RequestHeader(value = "Authorization", required = false) String auth,
+            @PathVariable Long memoryId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(playlists.resume(auth, memoryId));
+    }
     @PostMapping("/{memoryId}/playlist")
     public ResponseEntity<PlaylistResponse> create(@RequestHeader(value = "Authorization", required = false) String auth,
             @PathVariable Long memoryId) {

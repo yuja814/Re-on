@@ -27,6 +27,8 @@ try:
         file.write(config)
     os.chmod(filename, 0o600)
     query = "SELECT DATABASE(), VERSION(); SHOW TABLES;"
+    if "--recovery-schema" in sys.argv:
+        query += "SHOW COLUMNS FROM playlist_exports LIKE 'target_video_ids';"
     if "--counts" in sys.argv:
         for table in ("reon_users", "auth_sessions", "moments", "memories", "youtube_connections", "playlist_exports"):
             query += "SELECT '" + table + "', COUNT(*) FROM " + table + ";"

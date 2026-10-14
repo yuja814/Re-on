@@ -38,6 +38,7 @@ class YouTubeIntegrationTests {
     @Autowired YouTubeAuthorizationRepository authorizations;
     @Autowired YouTubeConnectionStore store;
     @Autowired TokenCipher cipher;
+    @Autowired DevTokenVerificationStore verification;
     @MockitoBean GoogleOAuthClient google;
     private String owner, other;
     private Long ownerId;
@@ -55,6 +56,32 @@ class YouTubeIntegrationTests {
     }
     private GoogleOAuthClient.Tokens tokens(String access, String refresh) {
         return new GoogleOAuthClient.Tokens(access, refresh, 3600L, "Bearer", GoogleOAuthClient.SCOPE);
+    }
+    @Test void simulatedExpiryRefreshesOnlyOwnerAndPreservesRefreshToken() {
+        store.save(ownerId, tokens("old-access", "refresh"));
+        var before = connections.findById(ownerId).orElseThrow();
+        String encryptedRefresh = before.getEncryptedRefreshToken();
+        verification.expire(ownerId);
+        assertTrue(connections.findById(ownerId).orElseThrow().getExpiresAt().isBefore(Instant.now()));
+        when(google.refresh("refresh")).thenReturn(tokens("new-access", null));
+        assertTrue(store.status(ownerId).connected());
+        var after = connections.findById(ownerId).orElseThrow();
+        assertTrue(after.getExpiresAt().isAfter(Instant.now().plusSeconds(60)));
+        assertEquals(encryptedRefresh, after.getEncryptedRefreshToken());
+        assertEquals("new-access", cipher.decrypt(after.getEncryptedAccessToken()));
+        verify(google).refresh("refresh");
+    }
+    @Test void devRefreshVerificationRequiresAuthentication() throws Exception {
+        mvc.perform(post("/dev/youtube/verify-refresh")).andExpect(status().isUnauthorized());
+        verify(google, never()).refresh(anyString());
+    }
+    @Test void devRefreshVerificationCannotExpireAnotherUsersConnection() throws Exception {
+        store.save(ownerId, tokens("old-access", "refresh"));
+        Instant expires = connections.findById(ownerId).orElseThrow().getExpiresAt();
+        mvc.perform(post("/dev/youtube/verify-refresh").header("Authorization", other))
+                .andExpect(status().isConflict());
+        assertEquals(expires, connections.findById(ownerId).orElseThrow().getExpiresAt());
+        verify(google, never()).refresh(anyString());
     }
     private String start() throws Exception {
         var result = mvc.perform(post("/api/v1/integrations/youtube/authorize").header("Authorization", owner))

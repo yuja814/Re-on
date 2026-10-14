@@ -98,8 +98,10 @@ class MySqlPersistenceTests {
     }
     @Test void completedPlaylistResultRoundTrip() {
         Long userId = user().getId(); var export = new PlaylistExport(userId, 987654321L, "검증 플레이리스트 🎵");
+        export.snapshot(java.util.List.of("wJhWwt1OmT8", "abcdefghijk"));
         export.created("PL-verification"); export.trackAdded(); export.complete(); exports.saveAndFlush(export); reload();
         var stored = exports.findByUserIdAndMemoryId(userId, 987654321L).orElseThrow();
+        assertEquals(java.util.List.of("wJhWwt1OmT8", "abcdefghijk"), stored.targetVideoIds());
         assertTrue(stored.isCompleted()); assertEquals(1, stored.getTrackCount()); assertEquals("PL-verification", stored.getPlaylistId());
     }
 }

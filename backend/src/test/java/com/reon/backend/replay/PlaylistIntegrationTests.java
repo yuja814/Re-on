@@ -33,6 +33,7 @@ class PlaylistIntegrationTests {
     @Autowired AuthSessionRepository authSessions;
     @Autowired UserRepository users;
     @Autowired PlaylistExportRepository exports;
+    @Autowired com.reon.backend.replay.service.PlaylistExportStore recoveryStore;
     @MockitoBean MemoryPlaylistSource memories;
     @MockitoBean YouTubeConnectionStore connections;
     @MockitoBean YouTubePlaylistClient youtube;
@@ -96,6 +97,86 @@ class PlaylistIntegrationTests {
     @Test void provider401MarksConnectionForReauth() throws Exception {
         when(youtube.create(anyString(), anyString(), anyString())).thenThrow(new ApiException(HttpStatus.CONFLICT, "YOUTUBE_AUTH_REQUIRED", "권한 없음"));
         create(owner).andExpect(status().isConflict()); verify(connections).requireReauth(ownerId);
+    }
+    private org.springframework.test.web.servlet.ResultActions resume(String auth) throws Exception {
+        return mvc.perform(post("/api/v1/memories/201/playlist/resume").header("Authorization", auth));
+    }
+    private void failSecondTrack() throws Exception {
+        doThrow(new ApiException(HttpStatus.BAD_GATEWAY, "YOUTUBE_PLAYLIST_ERROR", "실패"))
+                .when(youtube).addVideo("token", "PL123", "abcdefghijk");
+        create(owner).andExpect(status().isBadGateway());
+        doNothing().when(youtube).addVideo("token", "PL123", "abcdefghijk");
+    }
+    @Test void recoversMissingTrackFromFrozenSnapshotWithoutNewPlaylist() throws Exception {
+        failSecondTrack();
+        // Subsequent Memory changes must not replace the original request.
+        when(memories.findOwned(201L, ownerId)).thenReturn(Optional.empty());
+        when(youtube.videoIds("token", "PL123")).thenReturn(List.of("wJhWwt1OmT8"), List.of("wJhWwt1OmT8", "abcdefghijk"));
+        resume(owner).andExpect(status().isOk()).andExpect(jsonPath("$.playlistId").value("PL123"))
+                .andExpect(jsonPath("$.trackCount").value(2));
+        resume(owner).andExpect(status().isOk());
+        verify(youtube, times(1)).create(anyString(), anyString(), anyString());
+        verify(youtube, times(1)).addVideo("token", "PL123", "wJhWwt1OmT8");
+        verify(youtube, times(2)).addVideo("token", "PL123", "abcdefghijk");
+    }
+    @Test void lostInsertResponseDoesNotDuplicateAlreadyPresentTrack() throws Exception {
+        failSecondTrack();
+        when(youtube.videoIds("token", "PL123")).thenReturn(List.of("wJhWwt1OmT8", "abcdefghijk"));
+        resume(owner).andExpect(status().isOk()).andExpect(jsonPath("$.trackCount").value(2));
+        verify(youtube, times(1)).addVideo("token", "PL123", "abcdefghijk");
+    }
+    @Test void recoveryRejectsRemoteReorderAndDuplicates() throws Exception {
+        failSecondTrack();
+        for (var actual : List.of(List.of("abcdefghijk"), List.of("wJhWwt1OmT8", "wJhWwt1OmT8"))) {
+            when(youtube.videoIds("token", "PL123")).thenReturn(actual);
+            resume(owner).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PLAYLIST_REMOTE_CHANGED"));
+        }
+        verify(youtube, times(1)).addVideo("token", "PL123", "abcdefghijk");
+    }
+    @Test void recoveryRequiresOwnerSession() throws Exception {
+        failSecondTrack();
+        mvc.perform(post("/api/v1/memories/201/playlist/resume")).andExpect(status().isUnauthorized());
+        resume(other).andExpect(status().isNotFound());
+        verify(youtube, never()).videoIds(anyString(), anyString());
+    }
+    @Test void recoveryWithoutPlaylistIdOrSnapshotIsBlocked() throws Exception {
+        when(youtube.create(anyString(), anyString(), anyString())).thenThrow(new ApiException(HttpStatus.BAD_GATEWAY, "YOUTUBE_PLAYLIST_ERROR", "실패"));
+        create(owner).andExpect(status().isBadGateway());
+        resume(owner).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PLAYLIST_RECOVERY_BLOCKED"));
+        verify(youtube, never()).videoIds(anyString(), anyString());
+    }
+    @Test void recoveryClaimBlocksConcurrentAttempt() throws Exception {
+        failSecondTrack();
+        // Obtain the claim through Spring's transaction proxy.
+        recoveryStore.claimRecovery(ownerId, 201L);
+        resume(owner).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PLAYLIST_RECOVERY_BLOCKED"));
+        verify(youtube, never()).videoIds(anyString(), anyString());
+    }
+    @Test void recoveryCanFailAgainAndThenResumeWithoutDuplicate() throws Exception {
+        failSecondTrack();
+        when(youtube.videoIds("token", "PL123")).thenReturn(List.of("wJhWwt1OmT8"));
+        doThrow(new ApiException(HttpStatus.BAD_GATEWAY, "YOUTUBE_PLAYLIST_ERROR", "다시 실패"))
+                .when(youtube).addVideo("token", "PL123", "abcdefghijk");
+        resume(owner).andExpect(status().isBadGateway());
+        assertTrue(exports.findByUserIdAndMemoryId(ownerId, 201L).orElseThrow().isIncomplete());
+        // The failed request actually inserted remotely, although its response was lost.
+        when(youtube.videoIds("token", "PL123")).thenReturn(List.of("wJhWwt1OmT8", "abcdefghijk"));
+        resume(owner).andExpect(status().isOk()).andExpect(jsonPath("$.trackCount").value(2));
+        verify(youtube, times(2)).addVideo("token", "PL123", "abcdefghijk");
+    }
+    @Test void readFailureDoesNotAppendAnyTrack() throws Exception {
+        failSecondTrack();
+        when(youtube.videoIds("token", "PL123")).thenThrow(new ApiException(HttpStatus.BAD_GATEWAY, "YOUTUBE_PLAYLIST_ERROR", "조회 실패"));
+        resume(owner).andExpect(status().isBadGateway());
+        verify(youtube, times(1)).addVideo("token", "PL123", "abcdefghijk");
+    }
+    @Test void developmentFailureStopsAfterOneTrackAndIsRecoverable() throws Exception {
+        mvc.perform(post("/dev/memories/201/playlist/fail").header("Authorization", owner))
+                .andExpect(status().isBadGateway()).andExpect(jsonPath("$.code").value("DEV_PLAYLIST_FAILURE"))
+                .andExpect(jsonPath("$.confirmedTrackCount").value(1));
+        verify(youtube, never()).addVideo("token", "PL123", "abcdefghijk");
+        when(youtube.videoIds("token", "PL123")).thenReturn(List.of("wJhWwt1OmT8"), List.of("wJhWwt1OmT8", "abcdefghijk"));
+        resume(owner).andExpect(status().isOk());
     }
     @Test void emptyOrInvalidMemoryMusicIsRejected() throws Exception {
         for (var ids : List.of(List.<String>of(), List.of("invalid-id"))) {
