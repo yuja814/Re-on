@@ -1,0 +1,99 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="referrer" content="no-referrer-when-downgrade"><title>Re:on 실제 연동 검증</title>
+<style>body{font-family:system-ui;max-width:760px;margin:60px auto;padding:20px;line-height:1.6}button{padding:12px;margin:6px 6px 6px 0}pre{white-space:pre-wrap;background:#f1f3f5;padding:20px}#login{margin:24px 0}</style>
+<h1>Re:on 실제 연동 검증</h1><p>Google 로그인 후 YouTube 권한 연결과 상태 조회를 확인합니다. Memory ID를 입력하면 해당 기록으로 비공개 플레이리스트를 생성할 수 있습니다.</p>
+<div id="login"></div><button id="connect">YouTube 권한 연결</button><button id="status">연결 상태 조회</button><button id="verifyRefresh">토큰 만료·실제 갱신 검증</button><button id="logout">Re:on 로그아웃</button><div><button id="testMemories">검증용 Oasis 기록 3개 생성·Memory 분석</button><label>분석 월 <input id="analysisMonth" type="month"></label><button id="analyzeMemories">내 기록으로 Memory 분석</button></div><div><label>복구 검증 곡 ID (같은 채널의 서로 다른 곡, 쉼표 구분) <input id="recoveryVideos" placeholder="video ID 2개 이상"></label><button id="recoveryRecords">선택 월에 복구 검증 기록 6개·Memory 생성</button></div><div><label>Memory ID <input id="memoryId" type="number" min="1" step="1" placeholder="Memory ID"></label><button id="listMemories">Memory 목록 조회</button><button id="detailMemory">Memory 상세 조회</button><button id="readMemory">읽음 처리</button><button id="playlist">비공개 플레이리스트 생성</button><button id="failPlaylist">첫 곡 추가 후 실패 검증</button><button id="resumePlaylist">기존 플레이리스트 복구</button></div><pre id="result">Google 로그인을 진행해주세요.</pre>
+<script>
+const clientId = __CLIENT_ID_JSON__;
+const result = document.getElementById('result');
+const params = new URLSearchParams(location.search);
+if (params.size) history.replaceState({}, '', '/dev/verify');
+function show(value){result.textContent=JSON.stringify(value,null,2);}
+async function api(path,method='GET',body){
+ const headers={'Content-Type':'application/json'};
+ const token=sessionStorage.getItem('reon-test-token');
+ if(token) headers.Authorization='Bearer '+token;
+ const response=await fetch(path,{method,headers,body:body?JSON.stringify(body):undefined});
+ const data=await response.json();
+ if(!response.ok){const error=new Error(data.code+': '+data.message);error.details=data;throw error;}
+ return data;
+}
+async function login(response){
+ try{const data=await api('/api/v1/auth/google','POST',{idToken:response.credential});
+ sessionStorage.setItem('reon-test-token',data.accessToken);
+ show({login:'성공',user:data.user});}
+ catch(error){show({error:error.message,...(error.details||{})});}
+}
+function initializeGoogle(){
+ if(!window.google?.accounts?.id){show({error:'Google 로그인 SDK를 불러오지 못했습니다.'});return;}
+ google.accounts.id.initialize({client_id:clientId,callback:login});
+ google.accounts.id.renderButton(document.getElementById('login'),{theme:'outline',size:'large'});
+}
+const sdk=document.createElement('script');sdk.src='https://accounts.google.com/gsi/client';sdk.onload=initializeGoogle;document.head.appendChild(sdk);
+document.getElementById('connect').onclick=async()=>{try{
+ if(!sessionStorage.getItem('reon-test-token')) throw new Error('먼저 Re:on에 로그인해주세요.');
+ const data=await api('/api/v1/integrations/youtube/authorize','POST');location.assign(data.authorizationUrl);
+ }catch(error){show({error:error.message,...(error.details||{})});}};
+document.getElementById('status').onclick=async()=>{try{show(await api('/api/v1/integrations/youtube/status'));}catch(error){show({error:error.message,...(error.details||{})});}};
+document.getElementById('verifyRefresh').onclick=async()=>{const button=document.getElementById('verifyRefresh');try{button.disabled=true;show({status:'DB 만료 시각 변경 후 Google 갱신·YouTube 조회 중'});show(await api('/dev/youtube/verify-refresh','POST'));}catch(error){show({error:error.message,...(error.details||{})});}finally{button.disabled=false;}};
+document.getElementById('logout').onclick=async()=>{try{await api('/api/v1/auth/logout','POST');sessionStorage.removeItem('reon-test-token');show({logout:'성공'});}catch(error){show({error:error.message,...(error.details||{})});}};
+const analysisMonth=document.getElementById('analysisMonth');
+const now=new Date();analysisMonth.value=now.toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'}).slice(0,7);
+async function analyzeMemory(testRecords){
+ const button=document.getElementById(testRecords?'testMemories':'analyzeMemories');
+ try{
+ button.disabled=true;show({status:'Memory 분석 중'});
+ const path=testRecords?'/dev/memories/test-records':'/dev/memories/analyze?month='+encodeURIComponent(analysisMonth.value);
+ const memories=await api(path,'POST');show(memories);
+ if(memories.length) document.getElementById('memoryId').value=memories[0].id;
+ }catch(error){show({error:error.message,...(error.details||{})});}
+ finally{button.disabled=false;}
+}
+document.getElementById('recoveryRecords').onclick=async()=>{
+ const button=document.getElementById('recoveryRecords');
+ try{
+ const videoIds=[...new Set(document.getElementById('recoveryVideos').value.split(',').map(v=>v.trim()).filter(Boolean))];
+ if(videoIds.length<2 || videoIds.length>5 || videoIds.some(v=>!/^[A-Za-z0-9_-]{11}$/.test(v))) throw new Error('서로 다른 video ID 2~5개를 입력해주세요.');
+ button.disabled=true;show({status:'선택 월에 실제 음악 기록 6개 저장·분석 중'});
+ const memories=await api('/dev/memories/test-records','POST',{month:analysisMonth.value,videoIds});show(memories);
+ if(memories.length) document.getElementById('memoryId').value=memories[0].id;
+ }catch(error){show({error:error.message,...(error.details||{})});}finally{button.disabled=false;}
+};
+document.getElementById('testMemories').onclick=()=>analyzeMemory(true);
+document.getElementById('analyzeMemories').onclick=()=>analyzeMemory(false);
+document.getElementById('playlist').onclick=async()=>{
+ const button=document.getElementById('playlist');
+ try{
+ const id=document.getElementById('memoryId').value.trim();
+ if(!/^[1-9][0-9]*$/.test(id)) throw new Error('올바른 Memory ID를 입력해주세요.');
+ if(!sessionStorage.getItem('reon-test-token')) throw new Error('먼저 Re:on에 로그인해주세요.');
+ button.disabled=true;
+ show({status:'플레이리스트 생성 중'});
+ show(await api('/api/v1/memories/'+encodeURIComponent(id)+'/playlist','POST'));
+ }catch(error){show({error:error.message,...(error.details||{})});}
+ finally{button.disabled=false;}
+};
+document.getElementById('listMemories').onclick=async()=>{try{const data=await api('/api/v1/memories');show(data);if(data.content?.length)document.getElementById('memoryId').value=data.content[0].id;}catch(error){show({error:error.message,...(error.details||{})});}};
+async function inspectMemory(markRead){try{const id=document.getElementById('memoryId').value.trim();if(!/^[1-9][0-9]*$/.test(id))throw new Error('올바른 Memory ID를 입력해주세요.');show(await api('/api/v1/memories/'+id+(markRead?'/read':''),markRead?'PATCH':'GET'));}catch(error){show({error:error.message,...(error.details||{})});}}
+document.getElementById('detailMemory').onclick=()=>inspectMemory(false);
+document.getElementById('readMemory').onclick=()=>inspectMemory(true);
+async function recoverPlaylist(simulateFailure){
+ const button=document.getElementById(simulateFailure?'failPlaylist':'resumePlaylist');
+ try{
+ const id=document.getElementById('memoryId').value.trim();
+ if(!/^[1-9][0-9]*$/.test(id)) throw new Error('올바른 Memory ID를 입력해주세요.');
+ button.disabled=true;show({status:simulateFailure?'첫 곡 추가 후 의도적으로 중단 중':'YouTube 곡 목록 조회 후 누락 곡 복구 중'});
+ const path=simulateFailure?'/dev/memories/'+id+'/playlist/fail':'/api/v1/memories/'+id+'/playlist/resume';
+ show(await api(path,'POST'));
+ }catch(error){show({error:error.message,...(error.details||{})});}
+ finally{button.disabled=false;}
+}
+document.getElementById('failPlaylist').onclick=()=>recoverPlaylist(true);
+document.getElementById('resumePlaylist').onclick=()=>recoverPlaylist(false);
+(async()=>{try{
+ if(params.get('error')) throw new Error('Google 권한 동의가 완료되지 않았습니다.');
+ if(params.get('code')){
+ if(!sessionStorage.getItem('reon-test-token')) throw new Error('로그인 세션이 없습니다. 원래 탭에서 다시 연결해주세요.');
+ show(await api('/api/v1/integrations/youtube/connect','POST',{authorizationCode:params.get('code'),state:params.get('state')}));
+ }
+ }catch(error){show({error:error.message,...(error.details||{})});}})();
+</script></html>
