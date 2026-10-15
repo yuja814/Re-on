@@ -78,9 +78,10 @@ class MySqlPersistenceTests {
     @Test void longMemorySnapshotRoundTrip() {
         var memory = new Memory(user().getId(), "mem_0123456789abcdef", "2026-10");
         String snapshot = "{\"title\":\"긴 JSON 🎵\",\"content\":\"" + "한글".repeat(20000) + "\"}";
-        memory.apply("a".repeat(64), snapshot); memories.saveAndFlush(memory);
+        memory.replace("TIME", "긴 JSON", "설명", java.time.LocalDate.of(2026,10,1), java.time.LocalDate.of(2026,10,2),
+                "[]", snapshot, "a".repeat(64), 0, java.util.List.of()); memories.saveAndFlush(memory);
         Long id = memory.getId(); reload();
-        assertEquals(snapshot, memories.findById(id).orElseThrow().getSnapshot());
+        assertEquals(snapshot, memories.findById(id).orElseThrow().getTracksJson());
     }
     @Test void bearerSessionPersistsAndLogoutRevokesIt() {
         var owner = user(); String token = sessions.issue(owner); reload();

@@ -29,6 +29,11 @@ try:
     query = "SELECT DATABASE(), VERSION(); SHOW TABLES;"
     if "--recovery-schema" in sys.argv:
         query += "SHOW COLUMNS FROM playlist_exports LIKE 'target_video_ids';"
+    if "--memory-module" in sys.argv:
+        for table in ("reon_memory", "reon_memory_moment", "memory_history_revision"):
+            query += "SELECT '" + table + "', COUNT(*) FROM " + table + ";"
+        query += "SELECT 'legacy_ids_missing',COUNT(*) FROM memories old LEFT JOIN reon_memory target ON target.id=old.id AND target.user_id=old.user_id AND BINARY target.engine_memory_id=BINARY old.engine_id WHERE target.id IS NULL;"
+        query += "SELECT 'pending_users',COUNT(*) FROM memory_history_revision WHERE pending_months <> '';"
     if "--counts" in sys.argv:
         for table in ("reon_users", "auth_sessions", "moments", "memories", "youtube_connections", "playlist_exports"):
             query += "SELECT '" + table + "', COUNT(*) FROM " + table + ";"

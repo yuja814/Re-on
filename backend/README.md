@@ -19,9 +19,13 @@ Java 21 / Spring Boot 4.1.1 / Gradle Wrapper
 - `POST /api/v1/integrations/youtube/connect`: 인증 코드와 state로 권한 연결
 - `GET /api/v1/integrations/youtube/status`: 연결 상태 확인 / 만료 시 토큰 갱신
 
+- `GET /api/v1/memories`: 본인 활성 Memory 목록
+- `GET /api/v1/memories/{memoryId}`: 본인 활성 Memory 상세
+- `PATCH /api/v1/memories/{memoryId}/read`: 읽음 처리
 - `POST /api/v1/memories/{memoryId}/playlist`: 저장된 활성 Memory로 RE:PLAY 생성
+- `POST /api/v1/memories/{memoryId}/playlist/resume`: 부분 실패 복구
 
-GitHub `minjoung` 브랜치의 Memory Engine v0.3.0을 가져와 Spring Boot 저장·조회와 연결했습니다. 원본은 `memory-engine/CORE_SOURCE.md`에 기록되어 있으며 분석 알고리즘은 변경하지 않았습니다. 자동 분석 스케줄·운영 Memory 목록/상세/읽음 API는 별도 구현 범위입니다.
+GitHub `minjoung` 브랜치의 Memory Engine v0.3.0을 가져와 Spring Boot 저장·조회와 연결했습니다. 원본은 `memory-engine/CORE_SOURCE.md`에 기록되어 있으며 분석 알고리즘은 변경하지 않았습니다. 2026-10-15 `development`의 Memory 모듈과 엔진 v0.4.0을 통합했습니다. Bearer 인증, 실제 Moment DB, 변경 훅, 자동 분석 작업자, 목록·상세·읽음 API, RE:PLAY 어댑터가 연결되어 있습니다.
 
 ## 로컬 실행
 
@@ -415,9 +419,9 @@ cd backend/memory-engine
 
 `run_local.py`는 backend/.env의 REON_ENGINE_TOKEN을 환경변수로 전달하고 127.0.0.1:18081에서 실행합니다. Core는 같은 토큰으로 내부 엔드포인트 `/api/v1/memories/analyze/core`를 호출합니다. 비밀 값은 출력하지 않습니다. MySQL 없이 기본 dev 프로필의 파일 H2 DB를 사용하며 data 폴더는 Git에서 제외합니다.
 
-현재 월 전체 기록을 사용자 행 잠금 안에서 읽고 엔진 결과 저장까지 직렬 처리합니다. Moment 생성·수정·삭제도 같은 잠금을 사용해 오래된 스냅샷이 반영되지 않게 합니다. scope의 revision은 이 직렬 실행에서 0을 사용하며, 비동기 작업 큐로 전환할 때는 문서 계약의 단조 증가 revision과 비교·재분석을 구현해야 합니다. 엔진 응답의 소유자·월·곡 ID·Moment ID를 검증하고 내부 engine_id 기준 upsert 및 비활성화를 적용합니다. 엔진 호출 중 동일 사용자의 기록 쓰기는 대기할 수 있습니다(읽기 timeout 10초).
+Moment 생성·메모 수정·삭제 트랜잭션에서 Memory revision을 증가시키고 기존 결과를 즉시 비활성화합니다. 5초 간격 작업자가 월별 전체 DB 기록을 읽고 트랜잭션 밖에서 엔진을 호출합니다. 저장 시 revision을 다시 비교해 오래된 결과는 버리고 대기 작업을 유지합니다. 메모 변경/삭제 이전 스냅샷은 재분석 전까지 API와 플레이리스트에서 제외됩니다.
 
-위경도는 장소 이름이 아니므로 LOCATION 분석 입력에는 null을 전달합니다. 임의의 지명을 만들지 않습니다. 아티스트는 엔진의 Topic 채널 fallback을 그대로 사용합니다.
+좌표는 엔진 v0.4 계약의 위도·경도 객체로 전달합니다. 엔진이 좌표 셀로 분류하며 실제 장소명을 만들지는 않습니다. 아티스트 필드는 미확정이므로 null이고 엔진의 Topic 채널 fallback을 사용합니다.
 
 개발 전용 API (Re:on Bearer 인증 필요):
 
@@ -472,3 +476,40 @@ MySQL는 H2와 별도의 데이터이므로 Google 로그인·YouTube 연결을 
 - 기존 MySQL은 `devtools/migrate_playlist_recovery.sql`을 관리자 연결에서 한 번 실행해야 합니다. 이미 완료된 기존 결과는 그대로 유지합니다.
 - dev 검증 화면: 서로 다른 곡 2개 이상인 **아직 생성하지 않은 Memory**에 `첫 곡 추가 후 실패 검증` → `기존 플레이리스트 복구`. 같은 URL, 원본 곡 수/순서, 중복 없음, 반복 복구 시 같은 결과를 확인합니다. 기존 Oasis 3개 샘플은 동일 video ID이므로 이 검증에는 사용할 수 없습니다. 다른 미사용 월을 선택하고 같은 채널의 서로 다른 YouTube video ID 2개를 입력한 뒤 `선택 월에 복구 검증 기록 6개·Memory 생성`을 누르면 검증용 기록을 추가하고 분석합니다. 분석 결과의 곡 수도 확인하세요.
 - dev 토큰 갱신 버튼은 DB 만료 시각을 과거로 변경한 후 실제 Google 갱신과 YouTube 조회를 확인합니다. 실제 검증에서 `refreshed=true`, `youtubeApiVerified=true`를 확인했습니다.
+
+
+## Memory 팀 모듈 통합 (2026-10-15)
+
+기준: development `19247c348f84a3a6105700ae5177d0d3602e9b9f`의 Spring Memory 모듈/엔진 v0.4.0.
+원본 알고리즘은 유지하고 `DatabaseMomentHistoryReader`, `MemoryBearerFilter`, Moment 변경 훅, RE:PLAY 어댑터를 연결했습니다. 테스트 외부 요청은 위조된 Principal 대신 실제 Core 세션으로 검증됩니다.
+
+### 기존 MySQL 업그레이드
+
+1. 기존 Core/엔진 서버를 중지합니다.
+2. Workbench 관리자 연결에서 `devtools/migrate_memory_module.sql` **전체 파일**을 한 번 실행합니다. `reon_test` 전용입니다.
+3. 이 스크립트는 팀 전용 테이블 3개를 만들고 기존 `memories.id`/engine ID를 유지한 비활성 자리표시자 행을 `reon_memory`로 옮깁니다. 실제 Moment와 기존 Memory의 월을 재분석 대기열에 넣습니다. ID 충돌/120개월 초과는 중단하고 롤백합니다.
+4. 기존 `memories`, `moments`, 사용자, OAuth, `playlist_exports`는 삭제하지 않습니다. 기존 JSON은 되돌리기용으로 남습니다. 이전 테이블은 새 앱에서 읽지 않습니다.
+5. `.env`를 그대로 두고 `memory-engine/.venv/bin/python run_local.py`와 Core의 `dev,mysql` 프로필을 시작합니다. 새 테이블에 대한 기존 앱 계정의 CRUD 권한이 필요합니다.
+6. 작업자가 재분석을 마치기 전에는 이전 Memory가 목록에 표시되지 않습니다. 같은 engine ID로 재생성되면 공개 Memory ID는 유지됩니다. 달라진 패턴에는 새로운 ID가 생길 수 있으며 기존 완료 플레이리스트는 DB에 유지됩니다.
+7. 검증 화면에서 로그인 → Memory 목록/상세/읽음 → 해당 Memory 플레이리스트를 확인합니다. 새 기록 추가·수정·삭제 후 결과 비활성화/재분석도 확인합니다.
+
+새 H2 설치는 Core + Memory SQL을 함께 초기화합니다. 이전 H2의 legacy 데이터 이전은 이 MySQL 스크립트의 대상이 아니므로, 기존 H2 파일은 보존하고 MySQL에서 이전·검증합니다.
+
+### 검증 명령
+
+```bash
+./gradlew test bootJar
+# 별도 테스트 엔진: 실제 운영 비밀 값과 무관한 fixture 토큰 / 포트
+cd memory-engine
+REON_ENGINE_TOKEN=reon-local-integration-token .venv/bin/python -m uvicorn api:app --host 127.0.0.1 --port 18083
+# 다른 터미널, backend에서
+REON_MEMORY_ENGINE_INTEGRATION=true ./gradlew test
+# MySQL 이전 완료 후 opt-in 저장 검증(데이터는 롤백)
+REON_MYSQL_VERIFY=true ./gradlew test --tests '*MySqlPersistenceTests'
+```
+
+통합 테스트는 실제 Moment DB → Python HTTP → Memory 저장·Bearer 조회·플레이리스트 곡 소스, 메모 변경 후 같은 ID 재분석을 검증합니다. 실제 Google/YouTube 호출은 이 자동 테스트에서 모의 처리하며, 기존 계정의 MySQL/YouTube 재검증은 업그레이드 후 별도로 수행합니다.
+
+### 실제 이전 적용 결과 (2026-10-15)
+
+Workbench 관리자 연결에서 업그레이드 SQL 실행 후 기존 Memory 2개의 공개 ID/engine ID 보존을 확인했습니다(`legacy_ids_missing=0`). 실제 MySQL 저장 테스트 6개가 통과했고, dev,mysql 서버가 새 스키마 validate를 통과해 시작했습니다. 실제 엔진 v0.4.0으로 재분석 후 DB 스냅샷 42개, 대기 사용자 0을 확인했습니다. Java+실제 엔진 자동 테스트 133개, Python 67개 통과와 별도로 수행한 MySQL 결과입니다. 로그인한 검증 화면의 새 목록/상세/읽음 버튼으로 사용자 흐름을 최종 확인할 수 있습니다.

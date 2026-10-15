@@ -22,12 +22,13 @@ public class MomentService {
     private final SessionService sessions;
     private final UserRepository users;
     private final YouTubeClient youTube;
+    private final com.reon.backend.memory.service.MemoryHistoryService memoryHistory;
 
-    public MomentService(MomentRepository moments, SessionService sessions, UserRepository users, YouTubeClient youTube) {
+    public MomentService(MomentRepository moments, SessionService sessions, UserRepository users, YouTubeClient youTube, com.reon.backend.memory.service.MemoryHistoryService memoryHistory) {
         this.moments = moments;
         this.sessions = sessions;
         this.users = users;
-        this.youTube = youTube;
+        this.youTube = youTube; this.memoryHistory = memoryHistory;
     }
 
     @Transactional
@@ -37,7 +38,9 @@ public class MomentService {
         if (year < 1970 || year > 9998) { throw invalid("들은 시간은 1970~9998년 범위여야 합니다."); }
         var music = youTube.findVideo(request.videoId());
         var location = request.location();
-        Moment moment = new Moment(users.lockById(userId).orElseThrow(), music, request.memo(),
+        var user = users.lockById(userId).orElseThrow();
+        memoryHistory.recordChange(userId, null, request.recordedAt());
+        Moment moment = new Moment(user, music, request.memo(),
                 request.recordedAt().toInstant(), location == null ? null : location.latitude(),
                 location == null ? null : location.longitude());
         return MomentResponse.from(moments.saveAndFlush(moment));
@@ -53,6 +56,8 @@ public class MomentService {
         Long userId = sessions.currentUserId(authorization);
         users.lockById(userId).orElseThrow();
         Moment moment = owned(id, userId);
+        var recordedAt = moment.getRecordedAt().atOffset(ZoneOffset.UTC);
+        memoryHistory.recordChange(userId, recordedAt, recordedAt);
         moment.updateMemo(request.memo());
         return new MomentUpdateResponse(moment.getId(), moment.getMemo(), moment.getUpdatedAt().atOffset(ZoneOffset.ofHours(9)));
     }
@@ -61,7 +66,9 @@ public class MomentService {
     public void delete(String authorization, Long id) {
         Long userId = sessions.currentUserId(authorization);
         users.lockById(userId).orElseThrow();
-        moments.delete(owned(id, userId));
+        var moment = owned(id, userId);
+        memoryHistory.recordChange(userId, moment.getRecordedAt().atOffset(ZoneOffset.UTC), null);
+        moments.delete(moment);
     }
 
     @Transactional(readOnly = true)
