@@ -35,3 +35,11 @@ export async function updateMoment(id: string, update: MomentUpdate) {
   moments = moments.map((moment) => (moment.id === id ? { ...moment, ...update } : moment));
   listeners.forEach((listener) => listener());
 }
+
+export async function deleteMoment(id: string) {
+  // 실제 API 호출을 흉내 내기 위한 지연
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  moments = moments.filter((moment) => moment.id !== id);
+  listeners.forEach((listener) => listener());
+}
