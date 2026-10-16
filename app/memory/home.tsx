@@ -1,4 +1,4 @@
-//memory/home.tsx
+// app/memory/home.tsx
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -15,15 +15,40 @@ import {
 
 import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 
-export default function CreateMemoryScreen() {
+export default function MemoryHomeScreen() {
   const router = useRouter();
+
+  // 더미 데이터 배열 (map 함수로 깔끔하게 렌더링)
+  const memoryList = [
+    {
+      id: '1',
+      momentsCount: 5,
+      title: 'NCT127과 함께한 7월',
+      date: '2026. 07. 03. ~ 2026. 07. 21.',
+      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop',
+    },
+    {
+      id: '2',
+      momentsCount: 5,
+      title: 'NCT127과 함께한 7월',
+      date: '2026. 07. 03. ~ 2026. 07. 21.',
+      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop',
+    },
+    {
+      id: '3',
+      momentsCount: 5,
+      title: 'NCT127과 함께한 7월',
+      date: '2026. 07. 03. ~ 2026. 07. 21.',
+      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop',
+    },
+  ];
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       {/* 메인 스크롤 영역 */}
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 상단 헤더 영역 */}
         <View style={styles.header}>
           <View>
@@ -37,66 +62,40 @@ export default function CreateMemoryScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 노란색 메인 카드 영역 */}
-        <TouchableOpacity 
+        {/* 메인 카드 리스트 */}
+        {memoryList.map((item) => (
+          <TouchableOpacity
+            key={item.id}
             style={styles.mainCard}
+            activeOpacity={0.8}
             onPress={() => router.push('/memory/detail')}
-        >
-        {/* 13 moments 뱃지 */}
-            <View style={styles.momentsBadge}>
-                <Text style={styles.momentsBadgeText}>
-                    <Text style={styles.momentsCount}>2 </Text>
-                    moments
-                </Text>
-            </View>
-
-            {/* 타이틀 및 날짜 */}
+          >
+            {/* 좌측 정보 영역 */}
             <View style={styles.albumInfo}>
-                <Text style={styles.albumTitle}>NCT127과 함께한 7월</Text>
-                <Text style={styles.albumDate}>2026.07.03 - 2026.07.21</Text>        
-            </View>
-
-            <View style={styles.imageContainer}>
-                <Image
-                    source={{
-                        uri: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop',
-                    }}
-                    style={styles.albumCover}
-                />
-            </View>
-        </TouchableOpacity>
-
-        {/* 회색 메인 카드 영역 */}
-
-        <TouchableOpacity 
-            style={styles.mainCard}
-            onPress={() => router.push('/memory/detail')}
-        >
-            {/* 13 moments 뱃지 */}
-            <View style={styles.momentsBadge}>
+              {/* moments 뱃지 */}
+              <View style={styles.momentsBadge}>
                 <Text style={styles.momentsBadgeText}>
-                    <Text style={styles.momentsCount}>2 </Text>
-                    moments
+                  <Text style={styles.momentsCount}>{item.momentsCount}</Text> moments
                 </Text>
+              </View>
+
+              {/* 타이틀 및 날짜 */}
+              <Text style={styles.albumTitle}>{item.title}</Text>
+              <Text style={styles.albumDate}>{item.date}</Text>
             </View>
 
-            {/* 타이틀 및 날짜 */}
-            <View style={styles.albumInfo}>
-                <Text style={styles.albumTitle}>9월의 늦은 밤</Text>
-                <Text style={styles.albumDate}>2026.09.08 - 2026.09.29</Text>        
-            </View>
-
+            {/* 우측 이미지 영역 */}
             <View style={styles.imageContainer}>
-                <Image
-                    source={{
-                        uri: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop',
-                    }}
-                    style={styles.albumCover}
-                />
+              <Image
+                source={{ uri: item.coverImage }}
+                style={styles.albumCover}
+              />
             </View>
-        </TouchableOpacity>
-    </ScrollView>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
+      {/* 하단 탭 바 */}
       <BottomTabBar active="memory" />
     </SafeAreaView>
   );
@@ -105,10 +104,10 @@ export default function CreateMemoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#0D0B02',
   },
   scrollContent: {
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 120,
   },
@@ -117,19 +116,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginTop: 8,
+    marginTop: 16,
+    marginBottom: 40,
   },
   headerTitle: {
-    fontSize: 34,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFFFEB',
   },
   headerSubtitle: {
-    fontSize: 13,
-    color: '#A0A0A0',
-    marginTop: 4,
-    marginBottom: 24,
+    fontfamily: 'SF Pro',
+    fontSize: 14,
+    fontWeight: '510',
+    color: '#FFFFFF',
+    marginTop: 8,
   },
   addButton: {
     padding: 4,
@@ -141,54 +141,53 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     borderRadius: 16,
-    padding: 15,
+    padding: 14,
+    paddingLeft: 20,
     alignItems: 'center',
     marginBottom: 14,
   },
   albumInfo: {
     flex: 1,
-    marginRight: 16,
+    marginRight: 12,
+    marginTop: 25,
+    alignItems: 'flex-start',
     alignSelf: 'stretch',
-    justifyContent: 'flex-end',
-    marginBottom: 4,
-},
+  },
+  momentsBadge: {
+    borderWidth: 1,
+    borderColor: '#B7B6B1',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 10,
+    backgroundColor: 'transparent',
+  },
+  momentsBadgeText: {
+    fontSize: 9,
+    fontWeight: '510',
+    color: '#0A0801',
+  },
+  momentsCount: {
+    fontWeight: '700',
+  },
+  albumTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0A0801',
+    marginBottom: 2,
+  },
+  albumDate: {
+    fontSize: 12,
+    color: '#8E8E93',
+  },
   imageContainer: {
-    position: 'relative',
-    width: '33%',
-    aspectRatio: 1,
+    width: 100,
+    height: 100,
     borderRadius: 16,
     overflow: 'hidden',
   },
   albumCover: {
     width: '100%',
     height: '100%',
-  },
-  momentsBadge: {
-    position: 'absolute',
-    top: 50,
-    left: 5,
-    backgroundColor: '#ffffff1c',
-    borderWidth: 1,
-    borderColor: '#000000',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  momentsBadgeText: {
-    fontSize: 9,
-    color: '#000000',
-  },
-  momentsCount: {
-    fontWeight: '800',
-  },
-  albumTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#000000',
-    marginBottom: 4,
-  },
-  albumDate: {
-    fontSize: 12,
-    color: '#666666',
   },
 });
