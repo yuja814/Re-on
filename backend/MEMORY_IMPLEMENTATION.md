@@ -1,3 +1,5 @@
+> 2026-10-15 Core 통합 상태: Bearer → 검증된 Principal 필터, 실제 Moment 조회 어댑터, CRUD 변경 훅, 자동 작업자 및 플레이리스트 연결을 구현했습니다. 엔진은 backend/memory-engine에 있으며 기존 .env의 REON_ENGINE_TOKEN/18081을 사용합니다. 기존 DB 이전 및 실행의 최신 절차는 [README](README.md#memory-팀-모듈-통합-2026-10-15)를 확인하세요. 아래는 development 원본 모듈의 설계/연동 계약이며 미연동 상태를 설명하는 문장은 원본 작성 시점 기준입니다.
+
 # Memory 구현 및 연결 방법
 
 기준: API 명세 v0.4, `minjoung` f544ecd, `choiseunghwan` 9a80dbf.
