@@ -1,6 +1,6 @@
 //memory/home.tsx
 
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
     Image,
@@ -12,6 +12,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+
+import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 
 export default function CreateMemoryScreen() {
   const router = useRouter();
@@ -95,27 +97,7 @@ export default function CreateMemoryScreen() {
         </TouchableOpacity>
     </ScrollView>
 
-      {/* 하단 탭 바 (일반 Bottom Tab) */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity style={styles.tabItem}>
-          <Ionicons name="book" size={24} color="#FFFFFF" />
-          <Text style={[styles.tabLabel, styles.activeTabLabel]}>Memory</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabItem}>
-          <MaterialCommunityIcons
-            name="file-document-edit-outline"
-            size={24}
-            color="#8E8E93"
-          />
-          <Text style={styles.tabLabel}>기록</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabItem}>
-          <Ionicons name="person-outline" size={24} color="#8E8E93" />
-          <Text style={styles.tabLabel}>내 정보</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomTabBar active="memory" />
     </SafeAreaView>
   );
 }
@@ -128,7 +110,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 28,
     paddingTop: 16,
-    paddingBottom: 20,
+    paddingBottom: 120,
   },
   /* Header */
   header: {
@@ -207,30 +189,5 @@ const styles = StyleSheet.create({
   albumDate: {
     fontSize: 12,
     color: '#666666',
-  },
-
-  /* Bottom Tab Bar */
-  tabBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#2C2C2E',
-    paddingVertical: 13,
-    paddingBottom: 13,
-    borderTopWidth: 0.5,
-    borderTopColor: '#38383A',
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabLabel: {
-    fontSize: 11,
-    color: '#8E8E93',
-    marginTop: 4,
-  },
-  activeTabLabel: {
-    color: '#FFFFFF',
-    fontWeight: '600',
   },
 });

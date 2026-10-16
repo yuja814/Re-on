@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SongInfoCard } from '@/components/moment/song-info-card';
+import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 import { useMoment } from '@/stores/moment-store';
 import { formatMomentDate } from '@/utils/date';
 
@@ -72,6 +73,7 @@ export default function MomentDetailScreen() {
           <Text style={styles.notFoundText}>기록을 찾을 수 없어요.</Text>
         </View>
       )}
+      <BottomTabBar active="moment" />
     </SafeAreaView>
   );
 }
