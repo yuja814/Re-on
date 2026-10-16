@@ -42,3 +42,11 @@ out/
 !.env.example
 application-local.*
 client_secret*.json
+
+# Local development database
+/data/
+
+# Python Memory engine
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/

@@ -6,7 +6,7 @@ import java.time.*;
 import java.util.*;
 
 @Entity
-@Table(name = "reon_memory", uniqueConstraints = @UniqueConstraint(name = "uk_memory_engine", columnNames = "engine_memory_id"),
+@Table(name = "reon_memory", uniqueConstraints = @UniqueConstraint(name = "uk_reon_memory_engine", columnNames = "engine_memory_id"),
         indexes = @Index(name = "idx_memory_owner_active", columnList = "user_id,active,end_date"))
 @Getter
 public class Memory {
@@ -20,8 +20,8 @@ public class Memory {
     @Column(name = "start_date", nullable = false) private LocalDate startDate;
     @Column(name = "end_date", nullable = false) private LocalDate endDate;
     @Column(name = "moment_count", nullable = false) private int momentCount;
-    @Column(name = "contexts_json", nullable = false, columnDefinition = "TEXT") private String contextsJson;
-    @Column(name = "tracks_json", nullable = false, columnDefinition = "TEXT") private String tracksJson;
+    @Column(name = "contexts_json", nullable = false, columnDefinition = "LONGTEXT") private String contextsJson;
+    @Column(name = "tracks_json", nullable = false, columnDefinition = "LONGTEXT") private String tracksJson;
     @Column(name = "content_hash", nullable = false, length = 64) private String contentHash;
     @Column(nullable = false) private boolean active;
     @Column(name = "history_revision", nullable = false) private long historyRevision;

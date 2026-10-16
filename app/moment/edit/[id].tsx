@@ -13,9 +13,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DateField } from '@/components/moment/date-field';
-import { DiscardDialog } from '@/components/moment/discard-dialog';
+import { ConfirmDialog } from '@/components/moment/confirm-dialog';
 import { SongInfoCard } from '@/components/moment/song-info-card';
-import { updateMoment, useMoment } from '@/stores/moment-store';
+import { deleteMoment, updateMoment, useMoment } from '@/stores/moment-store';
 import type { Moment } from '@/types/moment';
 
 const PLACEHOLDER_COLOR = 'rgba(235, 235, 245, 0.3)';
@@ -47,6 +47,9 @@ function MomentEditForm({ moment }: { moment: Moment }) {
   const [isSaving, setIsSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [discardVisible, setDiscardVisible] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteFailed, setDeleteFailed] = useState(false);
 
   const isDirty =
     date.getTime() !== new Date(moment.createdAt).getTime() ||
@@ -87,6 +90,21 @@ function MomentEditForm({ moment }: { moment: Moment }) {
     } catch {
       setSaveFailed(true);
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    setDeleteFailed(false);
+    try {
+      await deleteMoment(moment.id);
+      setDeleteVisible(false);
+      // 삭제된 기록의 상세 화면으로 돌아가지 않도록 목록까지 닫는다
+      router.dismissTo('/moment/moment');
+    } catch {
+      setDeleteVisible(false);
+      setDeleteFailed(true);
+      setIsDeleting(false);
     }
   };
 
@@ -156,16 +174,39 @@ function MomentEditForm({ moment }: { moment: Moment }) {
               <Text style={styles.errorText}>저장하지 못했어요. 다시 시도해주세요.</Text>
             ) : null}
           </View>
+
+          <Pressable
+            style={styles.deleteButton}
+            onPress={() => setDeleteVisible(true)}
+            disabled={isSaving || isDeleting}>
+            <Text style={styles.deleteButtonText}>Moment 삭제</Text>
+          </Pressable>
+          {deleteFailed ? (
+            <Text style={styles.errorText}>삭제하지 못했어요. 다시 시도해주세요.</Text>
+          ) : null}
         </View>
       </ScrollView>
 
-      <DiscardDialog
+      <ConfirmDialog
         visible={discardVisible}
-        onKeepEditing={() => setDiscardVisible(false)}
-        onDiscard={() => {
+        title="작성 중인 내용을 버릴까요?"
+        cancelLabel="계속 편집하기"
+        confirmLabel="삭제하기"
+        onCancel={() => setDiscardVisible(false)}
+        onConfirm={() => {
           setDiscardVisible(false);
           close();
         }}
+      />
+
+      <ConfirmDialog
+        visible={deleteVisible}
+        title="이 Moment를 삭제할까요?"
+        cancelLabel="취소"
+        confirmLabel="삭제하기"
+        onCancel={() => setDeleteVisible(false)}
+        onConfirm={handleDelete}
+        disabled={isDeleting}
       />
     </SafeAreaView>
   );
@@ -243,6 +284,17 @@ const styles = StyleSheet.create({
   memoInput: {
     minHeight: 120,
     textAlignVertical: 'top',
+  },
+  deleteButton: {
+    alignSelf: 'center',
+    marginTop: 40,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  deleteButtonText: {
+    fontSize: 17,
+    fontWeight: '500',
+    color: '#FF453A',
   },
   errorText: {
     fontSize: 13,
