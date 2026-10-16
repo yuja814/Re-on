@@ -26,7 +26,19 @@ export function useMoment(id: string | undefined) {
   return useMoments().find((moment) => moment.id === id);
 }
 
-export type MomentUpdate = Pick<Moment, 'createdAt' | 'location' | 'memo'>;
+export type MomentInput = Omit<Moment, 'id'>;
+
+export async function createMoment(input: MomentInput) {
+  // 실제 API 호출을 흉내 내기 위한 지연
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  const moment: Moment = { id: String(Date.now()), ...input };
+  moments = [moment, ...moments];
+  listeners.forEach((listener) => listener());
+  return moment;
+}
+
+export type MomentUpdate =Pick<Moment, 'createdAt' | 'location' | 'memo'>;
 
 export async function updateMoment(id: string, update: MomentUpdate) {
   // 실제 API 호출을 흉내 내기 위한 지연
