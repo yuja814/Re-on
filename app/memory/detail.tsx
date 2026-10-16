@@ -1,9 +1,10 @@
 // app/memory/detail.tsx
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Image,
@@ -18,7 +19,33 @@ import {
 
 import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 
-// 개별 음파 무빙 애니메이션 컴포넌트
+// 백엔드 API 인터페이스 정의
+interface MemoryContext {
+  type: 'TIME' | 'PLACE';
+  label: string;
+}
+
+interface MomentItem {
+  id: number;
+  recordedAt: string;
+  songTitle: string;
+  artist: string;
+  memo?: string;
+  coverImageUrl?: string;
+}
+
+interface MemoryDetailData {
+  id: number;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  momentsCount: number;
+  contexts: MemoryContext[];
+  moments: MomentItem[];
+}
+
+// 음파 무빙 애니메이션 컴포넌트
 const AnimatedWaveBar = ({
   minHeight,
   maxHeight,
@@ -31,7 +58,6 @@ const AnimatedWaveBar = ({
   const animHeight = useRef(new Animated.Value(minHeight)).current;
 
   useEffect(() => {
-    // 위아래 반복 애니메이션 실행
     const loopAnim = Animated.loop(
       Animated.sequence([
         Animated.timing(animHeight, {
@@ -58,132 +84,197 @@ const AnimatedWaveBar = ({
 
 export default function MemoryDetailScreen() {
   const router = useRouter();
-  // RE:PLAY 버튼 클릭 시 모달 상태 관리
-  const [isReplaying, setIsReplaying] = useState(false);
+  const params = useLocalSearchParams();
+  const memoryId = params.memoryId;
 
-  // 타임라인 데이터
-  const momentList = [
-    {
-      id: '1',
-      date: '07',
-      day: 'MON',
-      showDate: true,
-      songTitle: 'Blingy',
-      artist: 'NCT 127',
-      memo: '밸런스는 좋은데 여백이 많아',
-      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop',
-    },
-    {
-      id: '2',
-      date: '07',
-      day: 'MON',
-      showDate: false,
-      songTitle: 'Blingy',
-      artist: 'NCT 127',
-      memo: '밸런스는 좋은데 여백이 많아',
-      coverImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=400&auto=format&fit=crop',
-    },
-    {
-      id: '3',
-      date: '07',
-      day: 'MON',
-      showDate: true,
-      songTitle: 'Blingy',
-      artist: 'NCT 127',
-      memo: '밸런스는 좋은데 여백이 많아',
-      coverImage: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop',
-    },
-    {
-      id: '4',
-      date: '07',
-      day: 'MON',
-      showDate: false,
-      songTitle: 'Blingy',
-      artist: 'NCT 127',
-      memo: '밸런스는 좋은데 여백이 많아',
-      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop',
-    },
-    {
-      id: '5',
-      date: '07',
-      day: 'MON',
-      showDate: true,
-      songTitle: 'Blingy',
-      artist: 'NCT 127',
-      memo: '밸런스는 좋은데 여백이 많아',
-      coverImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=400&auto=format&fit=crop',
-    },
-  ];
+  const [detailData, setDetailData] = useState<MemoryDetailData | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // RE:PLAY 버튼 클릭 시 모달 상태 관리
+  const [isReplaying, setIsReplaying] = useState<boolean>(false);
+
+  // GET 상세 조회 ➔ 성공 후 PATCH 읽음 처리 순차 실행
+  useEffect(() => {
+    if (!memoryId) return;
+
+    const fetchDetailAndMarkRead = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // TODO: 실제 서비스 시 저장된 JWT Auth 토큰으로 교체하세요.
+        const token = 'YOUR_JWT_ACCESS_TOKEN';
+
+        // 1. GET 상세 정보 조회
+        const getRes = await fetch(`http://localhost:8080/api/v1/memories/${memoryId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!getRes.ok) {
+          if (getRes.status === 404) {
+            throw new Error('존재하지 않거나 접근 권한이 없는 Memory입니다.');
+          }
+          throw new Error('Memory 상세 정보를 가져오지 못했습니다.');
+        }
+
+        const data: MemoryDetailData = await getRes.json();
+        setDetailData(data);
+
+        // 2. 상세 정보 GET 성공 후 PATCH 읽음 처리 호출 (명세서 규칙 준수)
+        fetch(`http://localhost:8080/api/v1/memories/${memoryId}/read`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        }).catch((patchErr) => console.error('Failed to mark as read:', patchErr));
+
+      } catch (err: any) {
+        console.error('Fetch error:', err);
+        setError(err.message || '데이터를 불러오는 중에 오류가 발생했습니다.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDetailAndMarkRead();
+  }, [memoryId]);
+
+  // 날짜 포맷팅 헬퍼 함수
+  const formatDateRange = (start?: string, end?: string) => {
+    if (!start || !end) return '';
+    const fmt = (d: string) => d.replace(/-/g, '. ');
+    return `${fmt(start)} ~ ${fmt(end)}`;
+  };
+
+  // ISO 날짜에서 일(DD) 추출
+  const getDayStr = (isoDate: string) => {
+    if (!isoDate) return '';
+    const d = new Date(isoDate);
+    return String(d.getDate()).padStart(2, '0');
+  };
+
+  // ISO 날짜에서 요일(MON, TUE 등) 추출
+  const getDayNameStr = (isoDate: string) => {
+    if (!isoDate) return '';
+    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    return days[new Date(isoDate).getDay()];
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#FFFC36" />
+          <Text style={styles.loadingText}>Memory 상세 정보를 불러오고 있어요...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  if (error || !detailData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <Ionicons name="alert-circle-outline" size={40} color="#FF6B6B" />
+          <Text style={styles.errorText}>{error || '정보를 찾을 수 없습니다.'}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => router.back()}>
+            <Text style={styles.retryBtnText}>목록으로 돌아가기</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // RE:PLAY용 4분할 대표 커버 이미지 (없을 경우 기본 이미지 대용)
+  const mosaicCovers = detailData.moments.slice(0, 4).map(
+    (m) => m.coverImageUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop'
+  );
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* 메인 스크롤 영역 */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* 1. 상단 히어로 배너 영역 */}
+        {/* 1. 상단 히어로 배너 */}
         <View style={styles.heroContainer}>
           <Image
             source={{
-              uri: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=800&auto=format&fit=crop',
+              uri: detailData.moments[0]?.coverImageUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=800&auto=format&fit=crop',
             }}
             style={styles.heroImage}
           />
-          {/* 동그란 뒤로가기 버튼 */}
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={24} color="#000000" />
           </TouchableOpacity>
         </View>
 
-        {/* 2. 앨범 타이틀 및 상세 정보 영역 */}
+        {/* 2. 상세 설명 영역 */}
         <View style={styles.descriptionSection}>
           <View style={styles.titleHeaderRow}>
-            <Text style={styles.heroTitle}>NCT127과 함께한 7월</Text>
-            <View style={styles.badgeItem}>
-              <Text style={styles.badgeText}>🌙 저녁 62%</Text>
-            </View>
+            <Text style={styles.heroTitle}>{detailData.title}</Text>
+            {detailData.contexts[0] && (
+              <View style={styles.badgeItem}>
+                <Text style={styles.badgeText}>{detailData.contexts[0].label}</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.subInfoRow}>
             <Text style={styles.heroDateText}>
-              <Text style={{ fontWeight: '700' }}>13 Moment</Text> | 2026. 07. 03. ~ 2026. 07. 21.
+              <Text style={{ fontWeight: '700' }}>{detailData.momentsCount} Moment</Text> |{' '}
+              {formatDateRange(detailData.startDate, detailData.endDate)}
             </Text>
-            <View style={styles.badgeItem}>
-              <Text style={styles.badgeText}>📍 체조경기장</Text>
-            </View>
+            {detailData.contexts[1] && (
+              <View style={styles.badgeItem}>
+                <Text style={styles.badgeText}>{detailData.contexts[1].label}</Text>
+              </View>
+            )}
           </View>
 
-          <Text style={styles.albumDescription}>
-            7월에는 NCT127의 음악을 많이 남겼어요. 특히 저녁 시간과 체조경기장을 중심으로 기록이 이어졌고, 메모에서도 ‘공연’, ‘집 가는 길’처럼 비슷한 순간들이 반복해서 나타났어요.
-          </Text>
+          <Text style={styles.albumDescription}>{detailData.description}</Text>
         </View>
-
-        {/* 3. 타임라인 리스트 영역 */}
+{/* 3. 타임라인 영역 */}
         <View style={styles.timelineContainer}>
-          {momentList.map((item) => (
-            <View key={item.id} style={styles.timelineItem}>
-              {/* 좌측 날짜 영역 */}
-              <View style={styles.dateContainer}>
-                {item.showDate ? (
-                  <>
-                    <Text style={styles.dateText}>{item.date}</Text>
-                    <Text style={styles.dayText}>{item.day}</Text>
-                  </>
-                ) : null}
-              </View>
+          {detailData.moments.map((item, idx) => {
+            // 동일 날짜 항목의 경우 첫 번째 항목에만 날짜 표시
+            const prevDate = idx > 0 ? getDayStr(detailData.moments[idx - 1].recordedAt) : null;
+            const currentDate = getDayStr(item.recordedAt);
+            const showDate = prevDate !== currentDate;
 
-              {/* 우측 Moment 카드 (isReplaying 시 딤 처리) */}
-              <View style={[styles.momentCard, isReplaying && styles.dimmedCard]}>
-                <Image source={{ uri: item.coverImage }} style={styles.cardCoverImage} />
-                <View style={styles.cardContent}>
-                  <Text style={styles.songTitle}>{item.songTitle}</Text>
-                  <Text style={styles.artistName}>{item.artist}</Text>
-                  <Text style={styles.memoText}>{item.memo}</Text>
+            return (
+              <View key={item.id} style={styles.timelineItem}>
+                {/* 좌측 날짜 표시 */}
+                <View style={styles.dateContainer}>
+                  {showDate ? (
+                    <>
+                      <Text style={styles.dateText}>{currentDate}</Text>
+                      <Text style={styles.dayText}>{getDayNameStr(item.recordedAt)}</Text>
+                    </>
+                  ) : null}
+                </View>
+
+                {/* 우측 Moment 카드 */}
+                <View style={[styles.momentCard, isReplaying && styles.dimmedCard]}>
+                  <Image
+                    source={{
+                      uri: item.coverImageUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop',
+                    }}
+                    style={styles.cardCoverImage}
+                  />
+                  <View style={styles.cardContent}>
+                    <Text style={styles.songTitle}>{item.songTitle}</Text>
+                    <Text style={styles.artistName}>{item.artist}</Text>
+                    {item.memo ? <Text style={styles.memoText}>{item.memo}</Text> : null}
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
 
           {/* 4. RE:PLAY 카드 */}
           <TouchableOpacity
@@ -192,12 +283,10 @@ export default function MemoryDetailScreen() {
             onPress={() => setIsReplaying(!isReplaying)}
           >
             <View style={styles.replayLeft}>
-              {/* 4분할 앨범 커버 모자이크 */}
               <View style={styles.mosaicGrid}>
-                <Image source={{ uri: momentList[0].coverImage }} style={styles.mosaicImg} />
-                <Image source={{ uri: momentList[1].coverImage }} style={styles.mosaicImg} />
-                <Image source={{ uri: momentList[2].coverImage }} style={styles.mosaicImg} />
-                <Image source={{ uri: momentList[3].coverImage }} style={styles.mosaicImg} />
+                {mosaicCovers.map((uri, idx) => (
+                  <Image key={idx} source={{ uri }} style={styles.mosaicImg} />
+                ))}
               </View>
               <View style={styles.replayTextGroup}>
                 <Text style={styles.replayTitle}>RE: PLAY</Text>
@@ -209,7 +298,7 @@ export default function MemoryDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* 5. 리플레이 클릭 시 하단 플레이어 준비 모달 */}
+      {/* 5. 음파 애니메이션 모달 */}
       {isReplaying && (
         <TouchableOpacity
           activeOpacity={1}
@@ -217,13 +306,12 @@ export default function MemoryDetailScreen() {
           onPress={() => setIsReplaying(false)}
         >
           <View style={styles.modalSheet}>
-            {/* 음파 그래프 무빙 애니메이션 */}
             <View style={styles.waveContainer}>
               <AnimatedWaveBar minHeight={12} maxHeight={36} duration={450} />
               <AnimatedWaveBar minHeight={18} maxHeight={48} duration={350} />
               <AnimatedWaveBar minHeight={24} maxHeight={56} duration={500} />
-              <AnimatedWaveBar minHeight={18} maxHeight={48} duration={350} />
-              <AnimatedWaveBar minHeight={12} maxHeight={36} duration={450} />
+              <AnimatedWaveBar minHeight={14} maxHeight={32} duration={400} />
+              <AnimatedWaveBar minHeight={20} maxHeight={44} duration={300} />
             </View>
             <Text style={styles.modalTitle}>그때의 음악을 준비하고 있어요...</Text>
             <Text style={styles.modalSub}>잠시만 기다려주세요.</Text>
@@ -231,7 +319,6 @@ export default function MemoryDetailScreen() {
         </TouchableOpacity>
       )}
 
-      {/* 하단 탭 바 */}
       <BottomTabBar active="memory" />
     </SafeAreaView>
   );
@@ -244,6 +331,32 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 120,
+  },
+  centerContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  loadingText: { 
+    marginTop: 12, 
+    fontSize: 14,
+    color: '#95938B' 
+  },
+  errorText: { 
+    marginTop: 12, 
+    fontSize: 14, 
+    color: '#FF6B6B', 
+    marginBottom: 16 
+  },
+  retryBtn: { 
+    backgroundColor: '#1C1C1E', 
+    paddingHorizontal: 16, 
+    paddingVertical: 8, 
+    borderRadius: 12 
+  },
+  retryBtnText: { 
+    fontSize: 13, 
+    color: '#FFFFFF' 
   },
 
   /* 1. Hero Image */
