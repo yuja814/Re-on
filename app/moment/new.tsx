@@ -19,7 +19,7 @@ import { createMoment } from '@/stores/moment-store';
 import type { Track } from '@/types/moment';
 import { startContextCollection } from '@/utils/context';
 
-const PLACEHOLDER_COLOR = 'rgba(235, 235, 245, 0.3)';
+const PLACEHOLDER_COLOR = 'rgba(0, 0, 0, 0.52)';
 
 type TrackState =
   | { status: 'loading' }
@@ -119,7 +119,7 @@ export default function MomentCreateScreen() {
           onPress={handleClose}
           hitSlop={8}
           accessibilityLabel="닫기">
-          <Ionicons name="close" size={20} color="#E8E8E6" />
+          <Ionicons name="close" size={24} color="#FFFFFF" />
         </Pressable>
 
         <Text style={styles.headerTitle}>Re:on</Text>
@@ -133,7 +133,7 @@ export default function MomentCreateScreen() {
           {isSaving ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
+            <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
           )}
         </Pressable>
       </View>
@@ -145,10 +145,10 @@ export default function MomentCreateScreen() {
           style={styles.memoInput}
           value={memo}
           onChangeText={setMemo}
-          placeholder="메모"
+          placeholder="짧은 한 줄 기록..."
           placeholderTextColor={PLACEHOLDER_COLOR}
-          multiline
           autoFocus
+          returnKeyType="done"
           maxLength={2000}
           editable={!isSaving}
         />
@@ -206,6 +206,7 @@ function TrackCard({ state }: { state: TrackState }) {
   );
 }
 
+// 값은 Figma wireframe '간편 기록하기'(7:70)와 REC-01 음악 기록 작성 화면을 따른다
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -219,25 +220,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 16,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#3A3A3C',
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '500',
     color: '#FFFFFF',
   },
   saveButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#0091FF',
@@ -249,35 +249,34 @@ const styles = StyleSheet.create({
   /* Content */
   content: {
     flex: 1,
-    paddingHorizontal: 16,
-    gap: 12,
+    paddingHorizontal: 25,
+    paddingTop: 25,
   },
   trackCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    minHeight: 72,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    backgroundColor: '#FFE67B',
+    height: 71,
+    paddingLeft: 18,
+    paddingRight: 12,
+    borderRadius: 20,
+    backgroundColor: '#FFE680',
   },
   trackCardPlaceholder: {
     justifyContent: 'center',
   },
   trackInfo: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
   trackTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#0A0801',
+    color: '#000000',
   },
   trackArtist: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#6B6857',
+    color: '#000000',
   },
   albumCover: {
     width: 48,
@@ -286,20 +285,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8E8E6',
   },
   memoInput: {
-    minHeight: 48,
-    maxHeight: 160,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 14,
-    borderRadius: 16,
-    backgroundColor: '#2C2C2E',
-    fontSize: 17,
-    lineHeight: 22,
-    letterSpacing: -0.43,
-    color: '#FFFFFF',
-    textAlignVertical: 'top',
+    height: 42,
+    marginTop: 30,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    backgroundColor: '#FFF3BF',
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#000000',
   },
   errorText: {
+    marginTop: 12,
     fontSize: 13,
     fontWeight: '500',
     color: '#FF453A',
