@@ -125,9 +125,8 @@ const styles = StyleSheet.create({
     color: '#FFFFEB',
   },
   headerSubtitle: {
-    fontfamily: 'SF Pro',
     fontSize: 14,
-    fontWeight: '510',
+    fontWeight: '500',
     color: '#FFFFFF',
     marginTop: 8,
   },
@@ -164,7 +163,7 @@ const styles = StyleSheet.create({
   },
   momentsBadgeText: {
     fontSize: 9,
-    fontWeight: '510',
+    fontWeight: '500',
     color: '#0A0801',
   },
   momentsCount: {
