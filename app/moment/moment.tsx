@@ -4,6 +4,7 @@ import { SectionList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MomentCard } from '@/components/moment/moment-card';
+import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 import { useMoments } from '@/stores/moment-store';
 import type { Moment } from '@/types/moment';
 
@@ -110,6 +111,7 @@ export default function MomentScreen() {
           </View>
         }
       />
+      <BottomTabBar active="moment" />
     </SafeAreaView>
   );
 }

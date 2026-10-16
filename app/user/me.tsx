@@ -4,6 +4,7 @@ import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 import { LogoutButton } from '@/components/user/logout-button';
 import { useSession } from '@/stores/auth-store';
 
@@ -58,6 +59,7 @@ export default function MyPageScreen() {
       </View>
 
       <View style={styles.bottomSpace} />
+      <BottomTabBar active="me" />
     </SafeAreaView>
   );
 }
