@@ -16,14 +16,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConfirmDialog } from '@/components/moment/confirm-dialog';
 import { resolveTrack } from '@/services/music';
 import { createMoment } from '@/stores/moment-store';
-import type { Track } from '@/types/moment';
+import type { SharedTrack } from '@/types/moment';
 import { startContextCollection } from '@/utils/context';
 
 const PLACEHOLDER_COLOR = '#95938B';
 
 type TrackState =
   | { status: 'loading' }
-  | { status: 'loaded'; track: Track }
+  | { status: 'loaded'; track: SharedTrack }
   | { status: 'failed' };
 
 /** REC-01 간편 기록하기: 음악 앱에서 공유한 곡에 메모를 남겨 Moment로 저장한다 */
