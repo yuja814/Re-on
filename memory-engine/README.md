@@ -7,7 +7,12 @@ Spring 모듈의 연결 방법은 `../backend/MEMORY_IMPLEMENTATION.md`에 있�
 
 ## 실행
 
-Windows: `run_server.bat` 실행 → <http://127.0.0.1:8000/docs>.
+Spring 통합 실행 엔진은 `backend/memory-engine`이다.
+Windows에서 이 폴더의 `run_server.bat`을 실행하면 통합 엔진을 **18081**번 포트로 켠다.
+토큰 설정 및 최신 실행 방법은 `../backend/memory-engine/README.md`를 확인한다.
+
+아래 8000번 명령은 이 폴더의 기존 엔진을 단독 테스트하는 방법이다.
+Spring과 연결할 때에는 위 통합 실행 경로를 사용한다.
 
 ```bash
 cd memory-engine
