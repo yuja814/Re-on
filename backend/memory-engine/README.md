@@ -3,22 +3,37 @@
 Moment의 아티스트·시간·위치·메모를 분석하는 규칙 기반 FastAPI 서비스다.
 엔진은 분석 결과만 반환한다. 김민정 담당의 Spring Boot Memory 모듈이 DB 저장·갱신·비활성화,
 revision 검증과 공개 Memory API 3개를 처리한다. 사용자 인증·Moment CRUD는 최승환 담당이다.
-Spring 모듈의 연결 방법은 `../backend/MEMORY_IMPLEMENTATION.md`에 있다.
+Spring 모듈의 연결 방법은 `../MEMORY_IMPLEMENTATION.md`에 있다.
+실제 Spring 연동에 사용하는 실행 엔진은 이 `backend/memory-engine` 디렉터리다.
 
 ## 실행
 
-Windows: `run_server.bat` 실행 → <http://127.0.0.1:8000/docs>.
+먼저 `backend/.env`에 `REON_ENGINE_TOKEN`을 설정하거나 OS 환경변수로 지정한다.
+Spring과 엔진에 같은 값을 사용한다. 토큰은 따옴표 없이 공백 없는 ASCII 문자열로 적는다.
+OS 환경변수가 파일보다 우선하며, 환경변수가 빈 값이면 파일로 대체하지 않고 실행을 중단한다.
+
+Windows: 이 폴더의 `run_server.bat` 실행 → <http://127.0.0.1:18081/docs>.
+루트 `memory-engine/run_server.bat`도 이 실행 파일을 호출한다.
 
 ```bash
-cd memory-engine
+# 저장소 루트에서
+cd backend/memory-engine
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-python -m uvicorn api:app --host 127.0.0.1 --port 8000
-python -m unittest discover -s tests -v
+python run_local.py
 ```
 
-CLI 데모는 `python main.py`, API 예제 호출은 서버 실행 후 `python try_api.py`다.
+테스트는 같은 폴더에서 `python -m unittest discover -s tests -v`로 실행한다.
+OS 환경변수로 토큰을 주면 `backend/.env` 없이도 실행할 수 있다.
+실행 위치에 관계없이 이 디렉터리의 `api.py`를 로드한다.
+기본 포트 18081은 Spring의 `MEMORY_ENGINE_URL` 기본값과 같다.
+포트를 바꾸려면 `python run_local.py --port 18083`과 같이 실행하고,
+Spring의 `MEMORY_ENGINE_URL`도 `http://127.0.0.1:18083`으로 맞춘다.
+Windows에서도 `run_server.bat --port 18083`으로 전달할 수 있다.
+
+CLI 데모는 `python main.py`다. `try_api.py`의 기본 주소는 별도 엔진 테스트용 8000이므로,
+통합 서버 검증에는 18081의 `/docs`를 사용한다.
 
 ## 엔드포인트
 
@@ -104,4 +119,6 @@ Core는 `X-Service-Token` 헤더를 보낸다. 잘못된 요청 토큰은 401,
 
 Google 로그인, Moment CRUD, YouTube OAuth/Playlist는 최승환 담당이다.
 Memory DB 처리와 공개 API는 이번 Spring 모듈에 구현되어 있다.
-실제 사용자 인증 및 실제 Moment 테이블과의 최종 통합은 해당 기능 구현 후 검증한다.
+인증·실제 Moment DB·변경 훅·자동 작업자 연결은 저장소에 구현되어 있다.
+과거 MySQL/Google 연동 결과와 현재 재현 명령은 `../README.md`의 통합 절을 확인한다.
+프론트 연결 및 실제 기기 검증은 별도다. 이번 실행 보완 검증 결과는 패키지 적용 안내에 기록한다.

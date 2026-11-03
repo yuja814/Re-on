@@ -18,8 +18,14 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo API Docs: http://127.0.0.1:8000/docs
+echo Default engine port: 18081 ^(overridable with --port^)
+echo Uses REON_ENGINE_TOKEN from the OS environment or backend/.env.
 echo Keep this window open while using the API.
 echo.
-".venv\Scripts\python.exe" -m uvicorn api:app --host 127.0.0.1 --port 8000
+".venv\Scripts\python.exe" run_local.py %*
+if errorlevel 1 (
+  echo Engine startup failed. Check the token, port and Python configuration.
+  pause
+  exit /b 1
+)
 pause
