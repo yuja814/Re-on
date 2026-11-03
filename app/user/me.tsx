@@ -1,18 +1,31 @@
 import Constants from 'expo-constants';
 import { Image } from 'expo-image';
 import { Redirect, Stack } from 'expo-router';
+import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 import { LogoutButton } from '@/components/user/logout-button';
-import { useSession } from '@/stores/auth-store';
+import { fetchMe } from '@/services/auth-api';
+import { updateUser, useSession } from '@/stores/auth-store';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 
 /** 마이페이지 > 내 정보 (Figma 566:3235) */
 export default function MyPageScreen() {
   const sessionState = useSession();
+  const isSignedIn = sessionState.status === 'signedIn';
+
+  // 저장된 정보를 먼저 보여주고, 서버에서 받은 최신 정보로 바꾼다
+  useEffect(() => {
+    if (!isSignedIn) return;
+    fetchMe()
+      .then(updateUser)
+      .catch(() => {
+        // 불러오지 못하면 저장된 정보를 그대로 보여준다
+      });
+  }, [isSignedIn]);
 
   if (sessionState.status === 'loading') {
     return (

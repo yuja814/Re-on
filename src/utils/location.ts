@@ -32,7 +32,7 @@ export async function getCurrentPlace(): Promise<CurrentPlace | undefined> {
 }
 
 /** 서울특별시 서초구 */
-async function toAddress(coordinates: Coordinates) {
+export async function toAddress(coordinates: Coordinates) {
   try {
     const [place] = await Location.reverseGeocodeAsync(coordinates);
     if (!place) return undefined;

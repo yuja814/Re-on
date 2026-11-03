@@ -12,11 +12,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { DateField } from '@/components/moment/date-field';
 import { ConfirmDialog } from '@/components/moment/confirm-dialog';
 import { SongInfoCard } from '@/components/moment/song-info-card';
-import { deleteMoment, updateMoment, useMoment } from '@/stores/moment-store';
+import { deleteMoment, updateMomentMemo, useMoment } from '@/stores/moment-store';
 import type { Moment } from '@/types/moment';
+import { formatMomentDate } from '@/utils/date';
 
 const PLACEHOLDER_COLOR = 'rgba(235, 235, 245, 0.3)';
 
@@ -41,8 +41,6 @@ export default function MomentEditScreen() {
 function MomentEditForm({ moment }: { moment: Moment }) {
   const router = useRouter();
 
-  const [date, setDate] = useState(() => new Date(moment.createdAt));
-  const [location, setLocation] = useState(moment.location ?? '');
   const [memo, setMemo] = useState(moment.memo ?? '');
   const [isSaving, setIsSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -51,10 +49,7 @@ function MomentEditForm({ moment }: { moment: Moment }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteFailed, setDeleteFailed] = useState(false);
 
-  const isDirty =
-    date.getTime() !== new Date(moment.createdAt).getTime() ||
-    location !== (moment.location ?? '') ||
-    memo !== (moment.memo ?? '');
+  const isDirty = memo !== (moment.memo ?? '');
 
   const close = () => {
     if (router.canGoBack()) {
@@ -81,11 +76,7 @@ function MomentEditForm({ moment }: { moment: Moment }) {
     setIsSaving(true);
     setSaveFailed(false);
     try {
-      await updateMoment(moment.id, {
-        createdAt: date.toISOString(),
-        location: location.trim() || undefined,
-        memo: memo.trim() || undefined,
-      });
+      await updateMomentMemo(moment.id, memo.trim());
       close();
     } catch {
       setSaveFailed(true);
@@ -144,18 +135,17 @@ function MomentEditForm({ moment }: { moment: Moment }) {
           <SongInfoCard track={moment.track} />
 
           <View style={styles.fields}>
+            {/* 서버(PATCH /moments/{id})가 메모만 수정할 수 있어 날짜·위치는 보여주기만 한다 */}
             <View style={styles.fieldRow}>
-              <DateField value={date} onChange={setDate} />
+              <Text style={[styles.input, styles.readOnly]}>
+                {formatMomentDate(new Date(moment.createdAt))}
+              </Text>
             </View>
 
             <View style={styles.fieldRow}>
-              <TextInput
-                style={styles.input}
-                value={location}
-                onChangeText={setLocation}
-                placeholder="위치"
-                placeholderTextColor={PLACEHOLDER_COLOR}
-              />
+              <Text style={[styles.input, styles.readOnly, !moment.location && styles.placeholder]}>
+                {moment.location ?? '위치'}
+              </Text>
             </View>
 
             <View style={styles.fieldRow}>
@@ -284,6 +274,12 @@ const styles = StyleSheet.create({
   memoInput: {
     minHeight: 120,
     textAlignVertical: 'top',
+  },
+  readOnly: {
+    color: 'rgba(235, 235, 245, 0.6)',
+  },
+  placeholder: {
+    color: PLACEHOLDER_COLOR,
   },
   deleteButton: {
     alignSelf: 'center',
