@@ -1,13 +1,14 @@
 // app/memory/detail.tsx
 
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
   Easing,
   Image,
+  Linking,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -19,31 +20,11 @@ import {
 
 import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 
-// 백엔드 API 인터페이스 정의
-interface MemoryContext {
-  type: 'TIME' | 'PLACE';
-  label: string;
-}
-
-interface MomentItem {
-  id: number;
-  recordedAt: string;
-  songTitle: string;
-  artist: string;
-  memo?: string;
-  coverImageUrl?: string;
-}
-
-interface MemoryDetailData {
-  id: number;
-  title: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  momentsCount: number;
-  contexts: MemoryContext[];
-  moments: MomentItem[];
-}
+import { fetchMemory, markMemoryRead, type MemoryDetail } from '@/services/memory-api';
+import { ApiError } from '@/services/api-client';
+import { createPlaylist, resumePlaylist, youtubeStatus } from '@/services/youtube-api';
+import { beginYouTubeConnection } from '@/services/youtube-browser';
+import { useSession } from '@/stores/auth-store';
 
 // 음파 무빙 애니메이션 컴포넌트
 const AnimatedWaveBar = ({
@@ -55,7 +36,7 @@ const AnimatedWaveBar = ({
   maxHeight: number;
   duration: number;
 }) => {
-  const animHeight = useRef(new Animated.Value(minHeight)).current;
+  const [animHeight] = useState(() => new Animated.Value(minHeight));
 
   useEffect(() => {
     const loopAnim = Animated.loop(
@@ -87,63 +68,55 @@ export default function MemoryDetailScreen() {
   const params = useLocalSearchParams();
   const memoryId = params.memoryId;
 
-  const [detailData, setDetailData] = useState<MemoryDetailData | null>(null);
+  const [detailData, setDetailData] = useState<MemoryDetail | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   // RE:PLAY 버튼 클릭 시 모달 상태 관리
   const [isReplaying, setIsReplaying] = useState<boolean>(false);
 
-  // GET 상세 조회 ➔ 성공 후 PATCH 읽음 처리 순차 실행
-  useEffect(() => {
-    if (!memoryId) return;
-
-    const fetchDetailAndMarkRead = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // TODO: 실제 서비스 시 저장된 JWT Auth 토큰으로 교체하세요.
-        const token = 'YOUR_JWT_ACCESS_TOKEN';
-
-        // 1. GET 상세 정보 조회
-        const getRes = await fetch(`http://localhost:8080/api/v1/memories/${memoryId}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!getRes.ok) {
-          if (getRes.status === 404) {
-            throw new Error('존재하지 않거나 접근 권한이 없는 Memory입니다.');
-          }
-          throw new Error('Memory 상세 정보를 가져오지 못했습니다.');
-        }
-
-        const data: MemoryDetailData = await getRes.json();
-        setDetailData(data);
-
-        // 2. 상세 정보 GET 성공 후 PATCH 읽음 처리 호출 (명세서 규칙 준수)
-        fetch(`http://localhost:8080/api/v1/memories/${memoryId}/read`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        }).catch((patchErr) => console.error('Failed to mark as read:', patchErr));
-
-      } catch (err: any) {
-        console.error('Fetch error:', err);
-        setError(err.message || '데이터를 불러오는 중에 오류가 발생했습니다.');
-      } finally {
-        setIsLoading(false);
-      }
+  const session=useSession();
+  const [readError,setReadError]=useState('');
+  const [replayError,setReplayError]=useState('');
+  const [playlistUrl,setPlaylistUrl]=useState('');
+  const [playlistId,setPlaylistId]=useState('');
+  const [playlistCount,setPlaylistCount]=useState<number|null>(null);
+  const [needsConnection,setNeedsConnection]=useState(false);
+  const [canResume,setCanResume]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    const load=async()=>{
+      if(session.status!=='signedIn')return;
+      if(typeof memoryId!=='string' || !/^[1-9][0-9]*$/.test(memoryId))throw new Error('Memory ID가 올바르지 않습니다.');
+      const data=await fetchMemory(memoryId);
+      if(!active)return;
+      setDetailData(data);
+      try{await markMemoryRead(memoryId);}catch{if(active)setReadError('읽음 처리를 완료하지 못했어요. 다시 시도해주세요.');}
     };
-
-    fetchDetailAndMarkRead();
-  }, [memoryId]);
+    void load().catch((reason:unknown)=>{if(active)setError(reason instanceof Error?reason.message:'Memory 조회 실패');})
+      .finally(()=>{if(active && session.status!=='loading')setIsLoading(false);});
+    return()=>{active=false;};
+  },[memoryId,session.status]);
+  const replay=async(resume=false)=>{
+    if(isReplaying || typeof memoryId!=='string')return;
+    setIsReplaying(true);setReplayError('');
+    try{
+      const status=await youtubeStatus();
+      if(!status.connected){setNeedsConnection(true);setReplayError('YouTube 계정을 연결해주세요.');return;}
+      setNeedsConnection(false);
+      const result=await (resume?resumePlaylist(memoryId):createPlaylist(memoryId));
+      setPlaylistUrl(result.playlistUrl);setPlaylistId(result.playlistId);setPlaylistCount(result.trackCount);setCanResume(false);
+    }catch(reason){
+      if(reason instanceof ApiError){
+        const partial=reason.details.playlistUrl;
+        if(partial)setPlaylistUrl(partial);
+        setNeedsConnection(['YOUTUBE_AUTH_REQUIRED','YOUTUBE_REAUTH_REQUIRED','YOUTUBE_NOT_CONNECTED'].includes(reason.code));
+        setCanResume(reason.code!=='PLAYLIST_RECOVERY_BLOCKED' && (Boolean(partial)||reason.code==='PLAYLIST_CREATION_INCOMPLETE'||reason.code==='NETWORK_ERROR'));
+        setReplayError(reason.message+(reason.details.confirmedTrackCount!==undefined?` (확인된 곡 ${reason.details.confirmedTrackCount}개)`:''));
+      }else setReplayError(reason instanceof Error?reason.message:'플레이리스트 요청에 실패했습니다.');
+    }finally{setIsReplaying(false);}
+  };
+  if(session.status==='signedOut')return <Redirect href="/user/login"/>;
 
   // 날짜 포맷팅 헬퍼 함수
   const formatDateRange = (start?: string, end?: string) => {
@@ -192,7 +165,7 @@ export default function MemoryDetailScreen() {
 
   // RE:PLAY용 4분할 대표 커버 이미지 (없을 경우 기본 이미지 대용)
   const mosaicCovers = detailData.moments.slice(0, 4).map(
-    (m) => m.coverImageUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop'
+    () => 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop'
   );
 
   return (
@@ -204,7 +177,7 @@ export default function MemoryDetailScreen() {
         <View style={styles.heroContainer}>
           <Image
             source={{
-              uri: detailData.moments[0]?.coverImageUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=800&auto=format&fit=crop',
+              uri: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=800&auto=format&fit=crop',
             }}
             style={styles.heroImage}
           />
@@ -226,7 +199,7 @@ export default function MemoryDetailScreen() {
 
           <View style={styles.subInfoRow}>
             <Text style={styles.heroDateText}>
-              <Text style={{ fontWeight: '700' }}>{detailData.momentsCount} Moment</Text> |{' '}
+              <Text style={{ fontWeight: '700' }}>{detailData.momentCount} Moment</Text> |{' '}
               {formatDateRange(detailData.startDate, detailData.endDate)}
             </Text>
             {detailData.contexts[1] && (
@@ -262,12 +235,12 @@ export default function MemoryDetailScreen() {
                 <View style={[styles.momentCard, isReplaying && styles.dimmedCard]}>
                   <Image
                     source={{
-                      uri: item.coverImageUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop',
+                      uri: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop',
                     }}
                     style={styles.cardCoverImage}
                   />
                   <View style={styles.cardContent}>
-                    <Text style={styles.songTitle}>{item.songTitle}</Text>
+                    <Text style={styles.songTitle}>{item.title}</Text>
                     <Text style={styles.artistName}>{item.artist}</Text>
                     {item.memo ? <Text style={styles.memoText}>{item.memo}</Text> : null}
                   </View>
@@ -276,11 +249,17 @@ export default function MemoryDetailScreen() {
             );
           })}
 
+          {readError?<TouchableOpacity onPress={()=>{if(typeof memoryId==='string')void markMemoryRead(memoryId).then(()=>setReadError('')).catch(()=>{});}}><Text style={{color:'#FF6B6B'}}>{readError}</Text></TouchableOpacity>:null}
+          {replayError?<Text style={{color:'#FF6B6B',marginTop:16}}>{replayError}</Text>:null}
+          {needsConnection?<TouchableOpacity onPress={()=>{if(typeof memoryId==='string')void beginYouTubeConnection(memoryId).catch((reason:unknown)=>setReplayError(reason instanceof Error?reason.message:'연결 실패'));}}><Text style={{color:'#FFE680',padding:16}}>YouTube 권한 연결</Text></TouchableOpacity>:null}
+          {canResume?<TouchableOpacity disabled={isReplaying} onPress={()=>{void replay(true);}}><Text style={{color:'#FFE680',padding:16}}>기존 플레이리스트 복구</Text></TouchableOpacity>:null}
+          {playlistId?<TouchableOpacity onPress={()=>{void Linking.openURL('https://www.youtube.com/playlist?list='+encodeURIComponent(playlistId)).catch(()=>setReplayError('플레이리스트를 열지 못했어요.'));}}><Text style={{color:'#FFE680',padding:16}}>일반 YouTube에서 열기</Text></TouchableOpacity>:null}
+          {playlistUrl?<TouchableOpacity onPress={()=>{void Linking.openURL(playlistUrl).catch(()=>setReplayError('플레이리스트를 열지 못했어요.'));}}><Text style={{color:'#FFE680',padding:16}}>YouTube Music에서 열기{playlistCount!==null?` · ${playlistCount}곡`:''}</Text></TouchableOpacity>:null}
           {/* 4. RE:PLAY 카드 */}
           <TouchableOpacity
             style={styles.replayCard}
             activeOpacity={0.9}
-            onPress={() => setIsReplaying(!isReplaying)}
+            onPress={() => {void replay();}}
           >
             <View style={styles.replayLeft}>
               <View style={styles.mosaicGrid}>
@@ -303,7 +282,7 @@ export default function MemoryDetailScreen() {
         <TouchableOpacity
           activeOpacity={1}
           style={styles.modalOverlay}
-          onPress={() => setIsReplaying(false)}
+          disabled={true}
         >
           <View style={styles.modalSheet}>
             <View style={styles.waveContainer}>

@@ -76,6 +76,7 @@ export default function CreateMemoryScreen() {
 }
 
 const styles = StyleSheet.create({
+  innerCard: { width: '100%', alignItems: 'center' },
   container: {
     flex: 1,
     backgroundColor: '#000000',

@@ -1,8 +1,8 @@
 // app/memory/home.tsx
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Redirect, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -17,60 +17,29 @@ import {
 
 import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 
-interface MemoryListItem {
-  id: number;
-  title: string;
-  momentsCount: number;
-  startDate: string;
-  endDate: string;
-  coverImageUrl: string;
-}
+import { fetchMemories as requestMemories, type MemorySummary } from '@/services/memory-api';
+import { useSession } from '@/stores/auth-store';
 
 export default function MemoryHomeScreen() {
   const router = useRouter();
 
-  const [memoryList, setMemoryList] = useState<MemoryListItem[]>([]);
+  const [memoryList, setMemoryList] = useState<MemorySummary[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // GET /api/v1/memories API 호출
-  const fetchMemories = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // TODO: 실제 서비스 시 저장된 JWT Auth 토큰으로 대체하세요.
-      const token = 'YOUR_JWT_ACCESS_TOKEN';
-
-      const response = await fetch('http://localhost:8080/api/v1/memories', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('인증이 필요합니다. 다시 로그인해주세요.');
-        }
-        throw new Error('Memory 목록을 가져오지 못했습니다.');
-      }
-
-      const data = await response.json();
-      // 백엔드 응답 형태: { content: [...] }
-      setMemoryList(data.content || []);
-    } catch (err: any) {
-      console.error('Fetch error:', err);
-      setError(err.message || '데이터를 불러오는 중 오류가 발생했습니다.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMemories();
-  }, []);
+  const session=useSession();
+  const load=useCallback(async(isActive:()=>boolean=()=>true)=>{
+    try{const data=await requestMemories();if(isActive()){setMemoryList(data.content);setError(null);}}
+    catch(reason){if(isActive())setError(reason instanceof Error?reason.message:'Memory를 불러오지 못했어요.');}
+    finally{if(isActive())setIsLoading(false);}
+  },[]);
+  useFocusEffect(useCallback(()=>{
+    let active=true;
+    if(session.status==='signedIn')void load(()=>active);
+    return()=>{active=false;};
+  },[session.status,load]));
+  const fetchMemories=()=>{setIsLoading(true);setError(null);void load();};
+  if(session.status==='signedOut')return <Redirect href="/user/login"/>;
 
   const isEmpty = memoryList.length === 0;
 
@@ -97,10 +66,10 @@ export default function MemoryHomeScreen() {
 
           <TouchableOpacity 
           style={styles.addButton}
-          onPress={() => router.push('/memory/create')}
+          onPress={fetchMemories}
           activeOpacity={0.7}
           >
-            <Ionicons name="add" size={28} color="#FFFFFF" />
+            <Ionicons name="refresh" size={28} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
@@ -140,19 +109,19 @@ export default function MemoryHomeScreen() {
                 {/* moments 뱃지 */}
                 <View style={styles.momentsBadge}>
                   <Text style={styles.momentsBadgeText}>
-                    <Text style={styles.momentsCount}>{item.momentsCount}</Text> moments
+                    <Text style={styles.momentsCount}>{item.momentCount}</Text> moments
                   </Text>
                 </View>
 
                 {/* 타이틀 및 날짜 */}
-                <Text style={styles.albumTitle}>{item.title}</Text>
+                <Text style={styles.albumTitle}>{item.title}{item.isNew ? ' · NEW' : ''}</Text>
                 <Text style={styles.albumDate}>{formatDateRange(item.startDate, item.endDate)}</Text>
               </View>
 
               {/* 우측 이미지 영역 */}
               <View style={styles.imageContainer}>
                 <Image
-                  source={{ uri: item.coverImageUrl }}
+                  source={require('@/assets/images/icon.png')}
                   style={styles.albumCover}
                 />
               </View>

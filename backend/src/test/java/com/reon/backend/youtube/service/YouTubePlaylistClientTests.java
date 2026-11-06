@@ -49,6 +49,12 @@ class YouTubePlaylistClientTests {
         }
         assertThrows(ApiException.class, () -> client.videoIds("token", "PL123")); server.verify();
     }
+    @Test void readsPrivacyFromTheExactAuthenticatedPlaylist() {
+        server.expect(requestTo("https://www.googleapis.com/youtube/v3/playlists?part=status&id=PL123"))
+                .andExpect(method(HttpMethod.GET)).andExpect(header("Authorization","Bearer token"))
+                .andRespond(withSuccess("{\"items\":[{\"id\":\"PL123\",\"status\":{\"privacyStatus\":\"private\"}}]}",MediaType.APPLICATION_JSON));
+        assertTrue(client.isPrivate("token","PL123"));server.verify();
+    }
     @Test void rejectedTokenRequiresReauthWithoutExposingProviderBody() {
         server.expect(anything()).andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("secret-token"));
         var error = assertThrows(ApiException.class, () -> client.create("secret-token", "title", ""));

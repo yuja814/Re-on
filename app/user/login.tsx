@@ -1,11 +1,11 @@
 import { Image } from 'expo-image';
 import { Redirect, Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { requestGoogleLogin } from '@/services/auth-api';
-import { signInWithGoogle } from '@/services/google-sign-in';
+import GoogleLoginButton from '@/components/auth/google-login-button';
 import { saveSession, useSession } from '@/stores/auth-store';
 
 /** 온보딩 > 로그인 (Figma 545:2649) */
@@ -15,21 +15,11 @@ export default function LoginScreen() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [loginFailed, setLoginFailed] = useState(false);
 
-  if (sessionState.status === 'signedIn' && !isSigningIn) {
-    return <Redirect href="/moment/moment" />;
-  }
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = useCallback(async (idToken: string) => {
     setIsSigningIn(true);
     setLoginFailed(false);
     try {
-      const idToken = await signInWithGoogle();
-      if (!idToken) {
-        // 사용자가 계정 선택을 취소한 경우
-        setIsSigningIn(false);
-        return;
-      }
-
       const session = await requestGoogleLogin(idToken);
       await saveSession(session);
       router.replace('/moment/moment');
@@ -37,7 +27,11 @@ export default function LoginScreen() {
       setLoginFailed(true);
       setIsSigningIn(false);
     }
-  };
+  }, [router]);
+
+  if (sessionState.status === 'signedIn' && !isSigningIn) {
+    return <Redirect href="/moment/moment" />;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -63,20 +57,8 @@ export default function LoginScreen() {
       <View style={styles.middleSpace} />
 
       <View style={styles.loginArea}>
-        {isSigningIn ? (
-          <ActivityIndicator size="small" color="#E8E8E6" style={styles.googleButton} />
-        ) : (
-          <Pressable
-            onPress={handleGoogleLogin}
-            accessibilityRole="button"
-            accessibilityLabel="Google로 로그인">
-            <Image
-              source={require('@/assets/images/auth/google-sign-in.png')}
-              style={styles.googleButton}
-              contentFit="contain"
-            />
-          </Pressable>
-        )}
+        <GoogleLoginButton onCredential={handleGoogleLogin} disabled={isSigningIn} onError={()=>setLoginFailed(true)} />
+        {isSigningIn ? <ActivityIndicator size="small" color="#E8E8E6" /> : null}
         {loginFailed ? (
           <Text style={styles.errorText}>로그인하지 못했어요. 다시 시도해주세요.</Text>
         ) : null}

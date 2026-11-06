@@ -70,6 +70,15 @@ public class YouTubePlaylistClient {
         return List.copyOf(ids);
     }
 
+    public boolean isPrivate(String token, String playlistId) {
+        var result = request(() -> http.get().uri(uri -> uri.path("/playlists").queryParam("part", "status")
+                .queryParam("id", playlistId).build()).headers(headers -> headers.setBearerAuth(token))
+                .retrieve().body(JsonNode.class));
+        if (result == null || !result.path("items").isArray() || result.path("items").size() != 1
+                || !playlistId.equals(result.path("items").path(0).path("id").asText())) { throw failure(); }
+        return "private".equals(result.path("items").path(0).path("status").path("privacyStatus").asText());
+    }
+
     private JsonNode post(String path, String token, Object body) {
         return request(() -> http.post().uri(path).headers(headers -> headers.setBearerAuth(token))
                 .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class));
