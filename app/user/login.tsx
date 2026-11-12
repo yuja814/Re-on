@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Redirect, Stack, useRouter } from 'expo-router';
+import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,10 +7,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { requestGoogleLogin } from '@/services/auth-api';
 import GoogleLoginButton from '@/components/auth/google-login-button';
 import { saveSession, useSession } from '@/stores/auth-store';
+import { normalizeYouTubeLink } from '@/utils/youtube-link';
 
 /** 온보딩 > 로그인 (Figma 545:2649) */
 export default function LoginScreen() {
   const router = useRouter();
+  const { sharedUrl } = useLocalSearchParams<{ sharedUrl?: string }>();
+  const pendingUrl = normalizeYouTubeLink(sharedUrl ?? '');
   const sessionState = useSession();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [loginFailed, setLoginFailed] = useState(false);
@@ -22,15 +25,15 @@ export default function LoginScreen() {
     try {
       const session = await requestGoogleLogin(idToken);
       await saveSession(session);
-      router.replace('/moment/moment');
+      router.replace(pendingUrl ? { pathname: '/moment/new', params: { url: pendingUrl } } : '/moment/moment');
     } catch {
       setLoginFailed(true);
       setIsSigningIn(false);
     }
-  }, [router]);
+  }, [router, pendingUrl]);
 
   if (sessionState.status === 'signedIn' && !isSigningIn) {
-    return <Redirect href="/moment/moment" />;
+    return <Redirect href={pendingUrl ? { pathname: '/moment/new', params: { url: pendingUrl } } : '/moment/moment'} />;
   }
 
   return (

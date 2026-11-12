@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import { getStringAsync } from 'expo-clipboard';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,51 +16,99 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConfirmDialog } from '@/components/moment/confirm-dialog';
 import { resolveTrack } from '@/services/music';
+import { ApiError } from '@/services/api-client';
 import { createMoment } from '@/stores/moment-store';
 import type { SharedTrack } from '@/types/moment';
 import { startContextCollection } from '@/utils/context';
+import { useSession } from '@/stores/auth-store';
+import { normalizeYouTubeLink } from '@/utils/youtube-link';
 
 const PLACEHOLDER_COLOR = '#95938B';
 
 type TrackState =
   | { status: 'loading' }
   | { status: 'loaded'; track: SharedTrack }
-  | { status: 'failed' };
+  | { status: 'failed'; message: string };
 
 /** REC-01 간편 기록하기: 음악 앱에서 공유한 곡에 메모를 남겨 Moment로 저장한다 */
 export default function MomentCreateScreen() {
+  const { url, shareId, shareError } = useLocalSearchParams<{ url?: string; shareId?: string; shareError?: string }>();
+  const session = useSession();
+  if (session.status === 'loading') {
+    return <SafeAreaView style={styles.container}><ActivityIndicator color="#FFFFFF" /></SafeAreaView>;
+  }
+  if (session.status === 'signedOut') {
+    return <Redirect href={{ pathname: '/user/login', params: { sharedUrl: normalizeYouTubeLink(url ?? '') ?? '' } }} />;
+  }
+  // A second share while this screen is open starts a fresh draft for that shared video.
+  return <MomentCreateForm key={`${shareId ?? ''}:${url ?? ''}:${shareError ?? ''}`} url={url} shareError={shareError} />;
+}
+
+function MomentCreateForm({ url, shareError }: { url?: string; shareError?: string }) {
   const router = useRouter();
-  const { url } = useLocalSearchParams<{ url?: string }>();
+  const [enteredUrl, setEnteredUrl] = useState<string | null>(null);
+  const trackUrl = enteredUrl ?? url ?? '';
+  const [linkInput, setLinkInput] = useState('');
+  const [pasteError, setPasteError] = useState(shareError ? 'YouTube 영상 링크 한 개를 공유해주세요.' : '');
+  const [isPasting, setIsPasting] = useState(false);
 
   const [trackState, setTrackState] = useState<TrackState>({ status: 'loading' });
   const [memo, setMemo] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [saveFailed, setSaveFailed] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [discardVisible, setDiscardVisible] = useState(false);
   const contextRef = useRef<ReturnType<typeof startContextCollection> | null>(null);
 
   const isDirty = memo.trim().length > 0;
-  const canSave = trackState.status === 'loaded' && !isSaving;
+  const canSave = !!trackUrl && trackState.status === 'loaded' && !isSaving;
+  const canLookup = !!linkInput.trim();
+
+  const pasteLink = async () => {
+    if (isPasting) return;
+    setIsPasting(true);
+    setPasteError('');
+    try {
+      const text = (await getStringAsync()).trim();
+      if (text) {
+        setLinkInput(text);
+      } else {
+        setPasteError('복사된 링크가 없어요. YouTube Music에서 곡 링크를 복사한 뒤 다시 눌러주세요.');
+      }
+    } catch {
+      setPasteError('복사한 내용을 읽지 못했어요. 붙여넣기 권한을 확인하거나 링크를 직접 입력해주세요.');
+    } finally {
+      setIsPasting(false);
+    }
+  };
+
+  const lookupTrack = () => {
+    if (!canLookup) return;
+    setTrackState({ status: 'loading' });
+    setEnteredUrl(linkInput.trim());
+  };
 
   useEffect(() => {
+    if (!trackUrl) return;
     let cancelled = false;
 
-    resolveTrack(url ?? '')
+    resolveTrack(trackUrl)
       .then((track) => {
         if (!cancelled) setTrackState({ status: 'loaded', track });
       })
-      .catch(() => {
-        if (!cancelled) setTrackState({ status: 'failed' });
+      .catch((error: unknown) => {
+        if (!cancelled) setTrackState({ status: 'failed', message:
+          error instanceof ApiError && error.code === 'MUSIC_CATEGORY_REQUIRED'
+            ? error.message : '곡 정보를 불러오지 못했어요. YouTube 영상 링크를 확인해주세요.' });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [trackUrl]);
 
   useEffect(() => {
-    contextRef.current = startContextCollection();
-  }, []);
+    if (trackUrl) contextRef.current = startContextCollection();
+  }, [trackUrl]);
 
   const close = () => {
     if (router.canGoBack()) {
@@ -78,10 +127,10 @@ export default function MomentCreateScreen() {
   };
 
   const handleSave = async () => {
-    if (trackState.status !== 'loaded' || isSaving) return;
+    if (!canSave || trackState.status !== 'loaded') return;
 
     setIsSaving(true);
-    setSaveFailed(false);
+    setSaveError('');
     try {
       const context = await (contextRef.current ?? startContextCollection()).collect();
 
@@ -91,8 +140,9 @@ export default function MomentCreateScreen() {
         ...context,
       });
       close();
-    } catch {
-      setSaveFailed(true);
+    } catch (error) {
+      setSaveError(error instanceof ApiError && error.code === 'MUSIC_CATEGORY_REQUIRED'
+        ? error.message : '저장하지 못했어요. 다시 시도해주세요.');
       setIsSaving(false);
     }
   };
@@ -109,10 +159,6 @@ export default function MomentCreateScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <Stack.Screen
-        options={{ headerShown: false, presentation: 'modal', gestureEnabled: !isDirty }}
-      />
-
       <View style={styles.grabber} />
 
       <View style={styles.header}>
@@ -140,30 +186,78 @@ export default function MomentCreateScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.content}>
-        <TrackCard state={trackState} />
+      {!trackUrl ? (
+        <View style={styles.content}>
+          <Text style={styles.linkLabel}>YouTube / YouTube Music 링크</Text>
+          <TextInput
+            accessibilityLabel="YouTube 링크"
+            style={styles.memoInput}
+            value={linkInput}
+            onChangeText={(text) => {
+              setLinkInput(text);
+              setPasteError('');
+            }}
+            placeholder="https://music.youtube.com/watch?v=…"
+            placeholderTextColor={PLACEHOLDER_COLOR}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            returnKeyType="search"
+            onSubmitEditing={lookupTrack}
+          />
+          <Pressable
+            accessibilityRole="button"
+            style={styles.lookupButton}
+            onPress={pasteLink}
+            disabled={isPasting}>
+            <Text style={styles.lookupText}>{isPasting ? '읽는 중…' : '복사한 링크 붙여넣기'}</Text>
+          </Pressable>
+          {pasteError ? <Text accessibilityRole="alert" style={styles.errorText}>{pasteError}</Text> : null}
+          <Pressable
+            accessibilityRole="button"
+            style={[styles.lookupButton, !canLookup && styles.saveButtonDisabled]}
+            disabled={!canLookup}
+            onPress={lookupTrack}>
+            <Text style={styles.lookupText}>곡 정보 불러오기</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.content}>
+          <TrackCard state={trackState} />
 
-        <TextInput
-          style={styles.memoInput}
-          value={memo}
-          onChangeText={setMemo}
-          placeholder="짧은 한 줄 기록..."
-          placeholderTextColor={PLACEHOLDER_COLOR}
-          autoFocus
-          returnKeyType="done"
-          maxLength={2000}
-          editable={!isSaving}
-        />
+          {trackState.status === 'loaded' ? (
+            <TextInput
+              style={styles.memoInput}
+              value={memo}
+              onChangeText={setMemo}
+              placeholder="짧은 한 줄 기록..."
+              placeholderTextColor={PLACEHOLDER_COLOR}
+              autoFocus
+              returnKeyType="done"
+              maxLength={2000}
+              editable={!isSaving}
+            />
+          ) : null}
 
-        {trackState.status === 'failed' ? (
-          <Text style={styles.errorText}>
-            곡 정보를 불러오지 못했어요. 음악 앱에서 다시 공유해주세요.
-          </Text>
-        ) : null}
-        {saveFailed ? (
-          <Text style={styles.errorText}>저장하지 못했어요. 다시 시도해주세요.</Text>
-        ) : null}
-      </View>
+          {trackState.status === 'failed' ? (
+            <>
+              <Text style={styles.errorText}>{trackState.message}</Text>
+              <Pressable
+                accessibilityRole="button"
+                style={styles.lookupButton}
+                onPress={() => {
+                  setLinkInput(trackUrl);
+                  setEnteredUrl('');
+                }}>
+                <Text style={styles.lookupText}>링크 다시 입력</Text>
+              </Pressable>
+            </>
+          ) : null}
+          {saveError ? (
+            <Text style={styles.errorText}>{saveError}</Text>
+          ) : null}
+        </View>
+      )}
 
       <ConfirmDialog
         visible={discardVisible}
@@ -309,6 +403,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#181403',
+  },
+  linkLabel: {
+    color: '#FFFDF2',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  lookupButton: {
+    minHeight: 44,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFC36',
+  },
+  lookupText: {
+    color: '#181403',
+    fontWeight: '600',
   },
   errorText: {
     fontSize: 13,

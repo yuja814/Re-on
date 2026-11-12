@@ -93,11 +93,13 @@ export default function MomentScreen() {
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Moment</Text>
-        {/* MVP에서는 보기 방식을 변경할 수 없고 현재 방식만 표시한다 */}
-        <View style={styles.viewMode}>
-          <Text style={styles.viewModeText}>Timeline</Text>
-          <Ionicons name="chevron-down" size={12} color="#B7B6B1" />
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/moment/new')}
+          style={styles.addButton}>
+          <Ionicons name="add" size={18} color="#181403" />
+          <Text style={styles.addButtonText}>기록 추가</Text>
+        </Pressable>
       </View>
 
       <SectionList
@@ -167,7 +169,7 @@ function EmptyState({ status }: { status: MomentListState['status'] }) {
   return (
     <View style={styles.empty}>
       <Text style={styles.emptyText}>
-        아직 기록이 없어요.{'\n'}음악 앱에서 첫 기록을 남겨보세요.
+        아직 기록이 없어요.{'\n'}기록 추가를 눌러 첫 곡을 남겨보세요.
       </Text>
     </View>
   );
@@ -193,20 +195,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#E8E8E6',
   },
-  viewMode: {
+  addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    minHeight: 44,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#3A3936',
+    backgroundColor: '#FFFC36',
   },
-  viewModeText: {
+  addButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#B7B6B1',
+    color: '#181403',
   },
 
   /* Timeline */
