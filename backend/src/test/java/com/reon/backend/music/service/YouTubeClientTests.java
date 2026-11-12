@@ -3,6 +3,9 @@ package com.reon.backend.music.service;
 import com.reon.backend.global.ApiException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -31,7 +34,7 @@ class YouTubeClientTests {
     void mapsMetadataAndChoosesBestThumbnail() {
         expectRequest().andRespond(withSuccess("""
             {"items":[{"id":"wJhWwt1OmT8","snippet":{"title":"Live Forever",
-            "channelTitle":"Oasis - Topic","description":"ignored",
+            "channelTitle":"Oasis - Topic","categoryId":"10","description":"ignored",
             "thumbnails":{"default":{"url":"https://img.example/default.jpg"},
             "high":{"url":"https://img.example/high.jpg"}}}}]}
             """, MediaType.APPLICATION_JSON));
@@ -82,9 +85,23 @@ class YouTubeClientTests {
     @Test
     void allowsMetadataWithoutThumbnail() {
         expectRequest().andRespond(withSuccess("""
-            {"items":[{"id":"wJhWwt1OmT8","snippet":{"title":"Live Forever","channelTitle":"Oasis"}}]}
+            {"items":[{"id":"wJhWwt1OmT8","snippet":{"title":"Live Forever","channelTitle":"Oasis","categoryId":"10"}}]}
             """, MediaType.APPLICATION_JSON));
         assertNull(client.findVideo("wJhWwt1OmT8").thumbnailUrl());
+        server.verify();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"25", "24", "22", "unknown"})
+    void rejectsNonMusicAndMissingCategoriesEvenWithMusicTitle(String category) {
+        String field = category == null ? "" : ",\"categoryId\":\"" + category + "\"";
+        expectRequest().andRespond(withSuccess("""
+            {"items":[{"id":"wJhWwt1OmT8","snippet":{"title":"Music news","channelTitle":"Music - Topic"%s}}]}
+            """.formatted(field), MediaType.APPLICATION_JSON));
+        ApiException error = assertThrows(ApiException.class, () -> client.findVideo("wJhWwt1OmT8"));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, error.status());
+        assertEquals("MUSIC_CATEGORY_REQUIRED", error.code());
         server.verify();
     }
 }

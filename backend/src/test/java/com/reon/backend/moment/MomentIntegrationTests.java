@@ -76,6 +76,17 @@ class MomentIntegrationTests {
     }
 
     @Test
+    void nonMusicVideoCannotBeSavedDirectly() throws Exception {
+        when(youtube.findVideo("wJhWwt1OmT8")).thenThrow(new ApiException(
+                HttpStatus.UNPROCESSABLE_ENTITY, "MUSIC_CATEGORY_REQUIRED", "음악 영상만 기록할 수 있어요."));
+        mvc.perform(post("/api/v1/moments").header("Authorization", owner).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"videoId\":\"wJhWwt1OmT8\",\"recordedAt\":\"2026-10-11T08:30:00+09:00\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("MUSIC_CATEGORY_REQUIRED"));
+        assertEquals(0, moments.count());
+    }
+
+    @Test
     void missingMemoAndLocationAreOptional() throws Exception {
         mvc.perform(post("/api/v1/moments").header("Authorization", owner).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"videoId\":\"wJhWwt1OmT8\",\"recordedAt\":\"2026-10-11T08:30:00+09:00\"}"))

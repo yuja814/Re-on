@@ -15,7 +15,7 @@ export function toArtist(channelTitle: string) {
 }
 
 /**
- * 공유된 YouTube Music 링크(https://music.youtube.com/watch?v=ID)로 곡 정보를 불러온다.
+ * 공유된 YouTube / YouTube Music 영상 링크로 곡 정보를 불러온다.
  * 지원하지 않는 링크면 에러를 던진다.
  */
 export async function resolveTrack(url: string): Promise<SharedTrack> {

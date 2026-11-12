@@ -16,6 +16,7 @@ import java.util.Map;
 
 @Component
 public class YouTubeClient {
+    private static final String MUSIC_CATEGORY_ID = "10";
     private final RestClient restClient;
     private final String apiKey;
 
@@ -61,6 +62,11 @@ public class YouTubeClient {
             throw upstreamFailure();
         }
         Snippet snippet = video.snippet();
+        // Shared by URL resolution and Moment creation: never trust the caller's metadata.
+        if (!MUSIC_CATEGORY_ID.equals(snippet.categoryId())) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "MUSIC_CATEGORY_REQUIRED",
+                    "YouTube에서 음악으로 분류된 영상만 기록할 수 있어요. 다른 음악 링크를 선택해주세요.");
+        }
         return new MusicResolveResponse(video.id(), snippet.title(), snippet.channelTitle(),
                 thumbnailUrl(snippet.thumbnails()));
     }
@@ -83,6 +89,6 @@ public class YouTubeClient {
 
     public record VideosResponse(List<Video> items) {}
     public record Video(String id, Snippet snippet) {}
-    public record Snippet(String title, String channelTitle, Map<String, Thumbnail> thumbnails) {}
+    public record Snippet(String title, String channelTitle, String categoryId, Map<String, Thumbnail> thumbnails) {}
     public record Thumbnail(String url) {}
 }
