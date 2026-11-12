@@ -10,7 +10,7 @@ function load(file, imports, extra = {}) {
   const module = {exports:{}};
   vm.runInNewContext(js, {module,exports:module.exports,require:name=>{
     if(!(name in imports))throw new Error(`Unexpected dependency ${name}`);return imports[name];
-  }, URLSearchParams,AbortController,setTimeout,clearTimeout,process:{env:{EXPO_PUBLIC_API_BASE_URL:'http://localhost:18090'}},...extra});
+  }, URL,URLSearchParams,AbortController,setTimeout,clearTimeout,process:{env:{EXPO_PUBLIC_API_BASE_URL:'http://localhost:18090'}},...extra});
   return module.exports;
 }
 test('Bearer and memo-only request match the backend contract', async()=>{
@@ -59,4 +59,37 @@ test('local integration privacy setting never requests device location',async()=
   const context=load('src/utils/context.ts',{'@/utils/location':{getCurrentPlace:async()=>{requested=true;return {coordinates:{latitude:1,longitude:2}};}}},{process:{env:{EXPO_PUBLIC_CAPTURE_LOCATION:'false'}}});
   const recorded=await context.startContextCollection().collect();
   assert.equal(requested,false);assert.equal(recorded.coordinates,undefined);assert.equal(recorded.location,undefined);
+});
+
+test('YouTube mobile, watch and short shares resolve to one video without tracking parameters', () => {
+  const links = load('src/utils/youtube-link.ts', {});
+  const canonical = 'https://music.youtube.com/watch?v=maTP315XZCQ';
+  for (const url of [canonical, 'https://m.youtube.com/watch?v=maTP315XZCQ&list=RDmaTP315XZCQ&start_radio=1',
+    'https://www.youtube.com/watch?v=maTP315XZCQ', 'https://youtu.be/maTP315XZCQ?si=share']) {
+    assert.equal(links.normalizeYouTubeLink(url), canonical);
+  }
+  assert.equal(links.extractSharedYouTubeLink(['Oasis - Stand By Me\nhttps://youtu.be/maTP315XZCQ?si=share']), canonical);
+  assert.equal(links.extractSharedYouTubeLink([canonical, canonical]), canonical);
+  assert.equal(links.extractSharedYouTubeLink([canonical, 'https://youtu.be/wJhWwt1OmT8']), null);
+  for (const url of ['https://m.youtube.com.evil.com/watch?v=maTP315XZCQ', 'https://user@youtu.be/maTP315XZCQ',
+    'http://youtu.be/maTP315XZCQ', 'https://youtu.be/short', 'https://youtube.com/watch?v=maTP315XZCQ&v=wJhWwt1OmT8',
+    'https://youtu.be/maTP315XZCQ/extra', 'https://youtube.com/playlist?list=abc']) {
+    assert.equal(links.normalizeYouTubeLink(url), null);
+  }
+});
+test('native share routes once with canonical URL; unrelated OAuth links are preserved', () => {
+  const links = load('src/utils/youtube-link.ts', {});
+  let payloads = [{shareType:'url', value:'https://m.youtube.com/watch?v=maTP315XZCQ&list=radio'}];
+  let cleared = 0;
+  const intent = load('app/+native-intent.ts', {
+    'expo-sharing': {getSharedPayloads:()=>payloads, clearSharedPayloads:()=>{payloads=[];cleared++;}},
+    '@/utils/youtube-link': links,
+  });
+  const route = intent.redirectSystemPath({path:'reon://expo-sharing', initial:true});
+  const params = new URL(route, 'https://reon.test').searchParams;
+  assert.equal(params.get('url'), 'https://music.youtube.com/watch?v=maTP315XZCQ');
+  assert.ok(params.get('shareId')); assert.equal(cleared, 1);
+  assert.equal(intent.redirectSystemPath({path:'reon://expo-sharing', initial:false}), '/moment/new?shareError=unsupported');
+  const callback='reon://youtube-callback?code=test&state=expected';
+  assert.equal(intent.redirectSystemPath({path:callback, initial:false}), callback);
 });
