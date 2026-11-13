@@ -83,6 +83,14 @@ export default function MemoryDetailScreen() {
   const [playlistCount,setPlaylistCount]=useState<number|null>(null);
   const [needsConnection,setNeedsConnection]=useState(false);
   const [canResume,setCanResume]=useState(false);
+
+  const goBackToMemoryHome = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/memory/home');
+    }
+  };
   useEffect(()=>{
     let active=true;
     const load=async()=>{
@@ -155,7 +163,7 @@ export default function MemoryDetailScreen() {
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={40} color="#FF6B6B" />
           <Text style={styles.errorText}>{error || '정보를 찾을 수 없습니다.'}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.retryBtn} onPress={goBackToMemoryHome}>
             <Text style={styles.retryBtnText}>목록으로 돌아가기</Text>
           </TouchableOpacity>
         </View>
@@ -181,7 +189,7 @@ export default function MemoryDetailScreen() {
             }}
             style={styles.heroImage}
           />
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={goBackToMemoryHome}>
             <Ionicons name="chevron-back" size={24} color="#000000" />
           </TouchableOpacity>
         </View>

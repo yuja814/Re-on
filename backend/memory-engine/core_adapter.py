@@ -15,18 +15,37 @@ from api_models import (
 )
 
 
-def normalize_artist(artist: str | None, channel_title: str | None = None) -> str | None:
-    """Use the supplied name; only an explicit '- Topic' channel is a fallback.
+def normalize_artist(
+    artist: str | None,
+    channel_title: str | None = None,
+    song_title: str | None = None,
+) -> str | None:
+    """Resolve a conservative artist fallback from YouTube metadata.
 
-    Case/Unicode/space comparisons occur in the shared canonical() function.
-    Generic YouTube channel names never become artists.
+    Explicit artist metadata always wins. When it is missing, accept well-known
+    YouTube artist channel conventions (``- Topic`` / ``VEVO``). A plain channel
+    name is used only when the video title starts with the same name followed by
+    a dash, which avoids treating generic upload channels as artists.
     """
     if artist is not None:
         return artist.strip() or None
-    if channel_title:
-        topic = re.fullmatch(r"(.+?)\s+-\s+Topic\s*", channel_title.strip(), re.IGNORECASE)
-        if topic:
-            return topic.group(1).strip() or None
+    if not channel_title:
+        return None
+
+    channel = channel_title.strip()
+    topic = re.fullmatch(r"(.+?)\s+-\s+Topic\s*", channel, re.IGNORECASE)
+    if topic:
+        return topic.group(1).strip() or None
+
+    vevo = re.fullmatch(r"(.+?)\s*VEVO\s*", channel, re.IGNORECASE)
+    if vevo:
+        return vevo.group(1).strip() or None
+
+    if song_title:
+        title_artist = re.match(r"^(.+?)\s*[-–—]\s+.+$", song_title.strip())
+        if title_artist and title_artist.group(1).strip().casefold() == channel.casefold():
+            return channel or None
+
     return None
 
 
@@ -111,8 +130,12 @@ def adapt_core_request(payload: CoreAnalysisRequest) -> AnalysisRequest:
         if owner is not None and user_id != owner:
             raise ValueError("Moment.userId와 요청 사용자 ID가 서로 다릅니다.")
         explicit_artist = m.artist or (m.track.artist if m.track else None) or (m.music.artist if m.music else None)
-        artist = normalize_artist(explicit_artist, m.music.channelTitle if m.music else None)
         song_title = m.songTitle or (m.track.title if m.track else m.music.title)
+        artist = normalize_artist(
+            explicit_artist,
+            m.music.channelTitle if m.music else None,
+            song_title,
+        )
         track_id = (m.music.videoId if m.music else None) or (m.track.videoId if m.track else None)
         location = m.location.label() if isinstance(m.location, CoreLocation) else m.location
         normalized.append(MomentInput(
