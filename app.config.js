@@ -8,7 +8,16 @@ module.exports = ({ config }) => {
   plugins.push(['expo-sharing', {
     ios: {
       enabled: iosSharingEnabled,
-      activationRule: { supportsText: true, supportsWebUrlWithMaxCount: 1 },
+      extensionBundleIdentifier: bundleIdentifier
+          ? `${bundleIdentifier}.share`
+          : undefined,
+      appGroupId: bundleIdentifier
+          ? `group.${bundleIdentifier}`
+          : undefined,
+      activationRule: {
+        supportsText: true,
+        supportsWebUrlWithMaxCount: 1,
+      },
     },
   }]);
   if (iosSharingEnabled) plugins.push('./plugins/with-share-display-name');
