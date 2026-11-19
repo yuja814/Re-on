@@ -1,8 +1,10 @@
 // app/memory/home.tsx
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   SafeAreaView,
   ScrollView,
@@ -15,33 +17,37 @@ import {
 
 import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 
+import { fetchMemories as requestMemories, type MemorySummary } from '@/services/memory-api';
+import { useSession } from '@/stores/auth-store';
+
 export default function MemoryHomeScreen() {
   const router = useRouter();
 
-  // 더미 데이터 배열 (map 함수로 깔끔하게 렌더링)
-  const memoryList = [
-    {
-      id: '1',
-      momentsCount: 5,
-      title: 'NCT127과 함께한 7월',
-      date: '2026. 07. 03. ~ 2026. 07. 21.',
-      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop',
-    },
-    {
-      id: '2',
-      momentsCount: 5,
-      title: 'NCT127과 함께한 7월',
-      date: '2026. 07. 03. ~ 2026. 07. 21.',
-      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop',
-    },
-    {
-      id: '3',
-      momentsCount: 5,
-      title: 'NCT127과 함께한 7월',
-      date: '2026. 07. 03. ~ 2026. 07. 21.',
-      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop',
-    },
-  ];
+  const [memoryList, setMemoryList] = useState<MemorySummary[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const session=useSession();
+  const load=useCallback(async(isActive:()=>boolean=()=>true)=>{
+    try{const data=await requestMemories();if(isActive()){setMemoryList(data.content);setError(null);}}
+    catch(reason){if(isActive())setError(reason instanceof Error?reason.message:'Memory를 불러오지 못했어요.');}
+    finally{if(isActive())setIsLoading(false);}
+  },[]);
+  useFocusEffect(useCallback(()=>{
+    let active=true;
+    if(session.status==='signedIn')void load(()=>active);
+    return()=>{active=false;};
+  },[session.status,load]));
+  const fetchMemories=()=>{setIsLoading(true);setError(null);void load();};
+  if(session.status==='signedOut')return <Redirect href="/user/login"/>;
+
+  const isEmpty = memoryList.length === 0;
+
+  // 날짜 포맷 변환 (YYYY.MM.DD ~ YYYY.MM.DD)
+  const formatDateRange = (start: string, end: string) => {
+    const formatDate = (dateStr: string) => dateStr.replace(/-/g, '. ');
+    return `${formatDate(start)} ~ ${formatDate(end)}`;
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -57,42 +63,71 @@ export default function MemoryHomeScreen() {
               음악이 이어준 나의 특별한 시간들
             </Text>
           </View>
-          <TouchableOpacity style={styles.addButton}>
-            <Ionicons name="add" size={28} color="#FFFFFF" />
+
+          <TouchableOpacity 
+          style={styles.addButton}
+          onPress={fetchMemories}
+          activeOpacity={0.7}
+          >
+            <Ionicons name="refresh" size={28} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        {/* 메인 카드 리스트 */}
-        {memoryList.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={styles.mainCard}
-            activeOpacity={0.8}
-            onPress={() => router.push('/memory/detail')}
-          >
-            {/* 좌측 정보 영역 */}
-            <View style={styles.albumInfo}>
-              {/* moments 뱃지 */}
-              <View style={styles.momentsBadge}>
-                <Text style={styles.momentsBadgeText}>
-                  <Text style={styles.momentsCount}>{item.momentsCount}</Text> moments
-                </Text>
+        {/* 상태별 조건부 렌더링 */}
+        {isLoading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#FFFC36" />
+            <Text style={styles.loadingText}>Memory를 불러오고 있어요...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.centerContainer}>
+            <Ionicons name="alert-circle-outline" size={40} color="#FF6B6B" />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={fetchMemories}>
+              <Text style={styles.retryBtnText}>다시 시도하기</Text>
+            </TouchableOpacity>
+          </View>
+        ) : isEmpty ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>아직 생성된 Memory가 없어요.{'\n'}다양한 기록들을 남겨보세요.</Text> 
+          </View>
+        ) : (
+          memoryList.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.mainCard}
+              activeOpacity={0.8}
+              onPress={() =>
+                router.push({
+                  pathname: '/memory/detail',
+                  params: { memoryId: item.id },
+                })
+              }
+            >
+              {/* 좌측 정보 영역 */}
+              <View style={styles.albumInfo}>
+                {/* moments 뱃지 */}
+                <View style={styles.momentsBadge}>
+                  <Text style={styles.momentsBadgeText}>
+                    <Text style={styles.momentsCount}>{item.momentCount}</Text> moments
+                  </Text>
+                </View>
+
+                {/* 타이틀 및 날짜 */}
+                <Text style={styles.albumTitle}>{item.title}{item.isNew ? ' · NEW' : ''}</Text>
+                <Text style={styles.albumDate}>{formatDateRange(item.startDate, item.endDate)}</Text>
               </View>
 
-              {/* 타이틀 및 날짜 */}
-              <Text style={styles.albumTitle}>{item.title}</Text>
-              <Text style={styles.albumDate}>{item.date}</Text>
-            </View>
-
-            {/* 우측 이미지 영역 */}
-            <View style={styles.imageContainer}>
-              <Image
-                source={{ uri: item.coverImage }}
-                style={styles.albumCover}
-              />
-            </View>
-          </TouchableOpacity>
-        ))}
+              {/* 우측 이미지 영역 */}
+              <View style={styles.imageContainer}>
+                <Image
+                  source={require('@/assets/images/icon.png')}
+                  style={styles.albumCover}
+                />
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
 
       {/* 하단 탭 바 */}
@@ -132,6 +167,44 @@ const styles = StyleSheet.create({
   },
   addButton: {
     padding: 4,
+  },
+  centerContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    paddingBottom: 80 
+  },
+  loadingText: { 
+    marginTop: 12, 
+    fontSize: 14, 
+    color: '#95938B' 
+  },
+  errorText: { 
+    marginTop: 12, 
+    fontSize: 14, 
+    color: '#FF6B6B', 
+    marginBottom: 16 
+  },
+  retryBtn: { 
+    backgroundColor: '#1C1C1E', 
+    paddingHorizontal: 16, 
+    paddingVertical: 8, 
+    borderRadius: 12 
+  },
+  retryBtnText: { 
+    fontSize: 13, 
+    color: '#FFFFFF' 
+  },
+  /* Empty State */
+  emptyContainer: {
+    justifyContent: 'center',
+    paddingVertical: 200,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    color: '#E8E8E6',
   },
 
   /* 앨범 카드 */

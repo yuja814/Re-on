@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-import type { Session } from '@/types/user';
+import type { Session, User } from '@/types/user';
 import { deleteSession, readSession, writeSession } from '@/utils/session-storage';
 
 export type SessionState =
@@ -38,9 +38,20 @@ export function useSession() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
+/** API 요청에 붙일 토큰. 로그인하지 않았으면 undefined */
+export function getAccessToken() {
+  return state.status === 'signedIn' ? state.session.accessToken : undefined;
+}
+
 export async function saveSession(session: Session) {
   await writeSession(session);
   setState({ status: 'signedIn', session });
+}
+
+/** 로그인은 유지한 채 사용자 정보만 최신 값으로 바꾼다 */
+export async function updateUser(user: User) {
+  if (state.status !== 'signedIn') return;
+  await saveSession({ ...state.session, user });
 }
 
 export async function clearSession() {

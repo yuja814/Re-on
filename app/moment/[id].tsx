@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import type { ComponentProps } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { type ComponentProps, useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SongInfoCard } from '@/components/moment/song-info-card';
 import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
-import { useMoment } from '@/stores/moment-store';
+import { ApiError } from '@/services/api-client';
+import { loadMoment, useMoment } from '@/stores/moment-store';
 import { formatMomentDate } from '@/utils/date';
 
 type InfoRowProps = {
@@ -28,6 +29,26 @@ export default function MomentDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const moment = useMoment(id);
+  const [loadState, setLoadState] = useState<'loading' | 'loaded' | 'notFound' | 'failed'>(
+    'loading',
+  );
+
+  // 목록에서 넘어왔으면 먼저 보여주고, 위치까지 담긴 상세 정보로 채운다
+  const load = useCallback(() => {
+    if (!id) return;
+    loadMoment(id)
+      .then(() => setLoadState('loaded'))
+      .catch((error) => {
+        setLoadState(error instanceof ApiError && error.status === 404 ? 'notFound' : 'failed');
+      });
+  }, [id]);
+
+  useEffect(load, [load]);
+
+  const retry = () => {
+    setLoadState('loading');
+    load();
+  };
 
   const goBack = () => {
     if (router.canGoBack()) {
@@ -46,7 +67,7 @@ export default function MomentDetailScreen() {
           <Ionicons name="chevron-back" size={22} color="#1A1A1A" />
         </Pressable>
 
-        {moment ? (
+        {moment && loadState !== 'notFound' ? (
           <Pressable
             style={styles.editButton}
             onPress={() =>
@@ -58,7 +79,7 @@ export default function MomentDetailScreen() {
         ) : null}
       </View>
 
-      {moment ? (
+      {moment && loadState !== 'notFound' ? (
         <ScrollView contentContainerStyle={styles.content}>
           <SongInfoCard track={moment.track} />
 
@@ -70,7 +91,15 @@ export default function MomentDetailScreen() {
         </ScrollView>
       ) : (
         <View style={styles.notFound}>
-          <Text style={styles.notFoundText}>기록을 찾을 수 없어요.</Text>
+          {loadState === 'loading' ? (
+            <ActivityIndicator color="#E8E8E6" />
+          ) : loadState === 'failed' ? (
+            <Pressable onPress={retry} hitSlop={8}>
+              <Text style={styles.notFoundText}>기록을 불러오지 못했어요. 눌러서 다시 시도</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.notFoundText}>기록을 찾을 수 없어요.</Text>
+          )}
         </View>
       )}
       <BottomTabBar active="moment" />

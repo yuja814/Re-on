@@ -46,6 +46,15 @@ class CoreAdapterTests(unittest.TestCase):
         self.assertEqual(normalize_artist(None, " IU - Topic "), "IU")
         self.assertEqual(normalize_artist(None, " NCT 127 - topic "), "NCT 127")
 
+    def test_vevo_channel_is_accepted_when_artist_missing(self):
+        self.assertEqual(normalize_artist(None, "Example ArtistVEVO", "Example Artist - Song"),
+                         "Example Artist")
+
+    def test_plain_channel_requires_matching_title_artist(self):
+        self.assertEqual(normalize_artist(None, "Example Artist", "Example Artist - Song"),
+                         "Example Artist")
+        self.assertIsNone(normalize_artist(None, "Generic Music Channel", "Example Artist - Song"))
+
     def test_generic_channel_does_not_become_artist(self):
         body = copy.deepcopy(self.body)
         del body["moments"][0]["artist"]

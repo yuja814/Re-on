@@ -13,7 +13,7 @@ import java.util.*;
 
 @Profile("dev")
 @RestController
-@RequestMapping("/dev/memories")
+@RequestMapping({"/dev/memories", "/api/v1/dev/memories"})
 public class DevMemoryVerificationController {
     private final SessionService sessions;
     private final MomentService moments;

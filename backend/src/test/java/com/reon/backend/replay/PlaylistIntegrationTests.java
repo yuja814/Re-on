@@ -178,6 +178,18 @@ class PlaylistIntegrationTests {
         when(youtube.videoIds("token", "PL123")).thenReturn(List.of("wJhWwt1OmT8"), List.of("wJhWwt1OmT8", "abcdefghijk"));
         resume(owner).andExpect(status().isOk());
     }
+    @Test void devVerificationReadsOnlyTheOwnersExportAndNeverInsertsTracks() throws Exception {
+        create(owner).andExpect(status().isOk());
+        when(youtube.videoIds("token","PL123")).thenReturn(List.of("wJhWwt1OmT8","abcdefghijk"));
+        when(youtube.isPrivate("token","PL123")).thenReturn(true);
+        mvc.perform(get("/api/v1/dev/memories/201/playlist/verify").header("Authorization",owner))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.actualTrackCount").value(2))
+                .andExpect(jsonPath("$.orderMatches").value(true)).andExpect(jsonPath("$.privatePlaylist").value(true));
+        mvc.perform(get("/api/v1/dev/memories/201/playlist/verify").header("Authorization",other)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/dev/memories/201/playlist/verify")).andExpect(status().isUnauthorized());
+        verify(youtube,times(1)).addVideo("token","PL123","wJhWwt1OmT8");
+        verify(youtube,times(1)).addVideo("token","PL123","abcdefghijk");
+    }
     @Test void emptyOrInvalidMemoryMusicIsRejected() throws Exception {
         for (var ids : List.of(List.<String>of(), List.of("invalid-id"))) {
             when(memories.findOwned(201L, ownerId)).thenReturn(Optional.of(new MemoryPlaylistSource.MemoryMusic("title", "", ids)));

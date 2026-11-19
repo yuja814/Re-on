@@ -1,11 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { SectionList, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  SectionList,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MomentCard } from '@/components/moment/moment-card';
 import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
-import { useMoments } from '@/stores/moment-store';
+import {
+  loadMoments,
+  loadMoreMoments,
+  type MomentListState,
+  useMomentList,
+} from '@/stores/moment-store';
 import type { Moment } from '@/types/moment';
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -59,7 +73,19 @@ function toSections(moments: Moment[]): TimelineSection[] {
 
 export default function MomentScreen() {
   const router = useRouter();
-  const sections = toSections(useMoments());
+  const { moments, status, isLoadingMore } = useMomentList();
+  const sections = toSections(moments);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadMoments();
+  }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadMoments();
+    setIsRefreshing(false);
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -67,11 +93,13 @@ export default function MomentScreen() {
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Moment</Text>
-        {/* MVP에서는 보기 방식을 변경할 수 없고 현재 방식만 표시한다 */}
-        <View style={styles.viewMode}>
-          <Text style={styles.viewModeText}>Timeline</Text>
-          <Ionicons name="chevron-down" size={12} color="#B7B6B1" />
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/moment/new')}
+          style={styles.addButton}>
+          <Ionicons name="add" size={18} color="#181403" />
+          <Text style={styles.addButtonText}>기록 추가</Text>
+        </Pressable>
       </View>
 
       <SectionList
@@ -103,16 +131,47 @@ export default function MomentScreen() {
             </View>
           </View>
         )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              아직 기록이 없어요.{'\n'}음악 앱에서 첫 기록을 남겨보세요.
-            </Text>
-          </View>
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#E8E8E6" />
         }
+        onEndReached={loadMoreMoments}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          isLoadingMore ? <ActivityIndicator color="#E8E8E6" style={styles.footerLoading} /> : null
+        }
+        ListEmptyComponent={<EmptyState status={status} />}
       />
       <BottomTabBar active="moment" />
     </SafeAreaView>
+  );
+}
+
+function EmptyState({ status }: { status: MomentListState['status'] }) {
+  if (status === 'idle' || status === 'loading') {
+    return (
+      <View style={styles.empty}>
+        <ActivityIndicator color="#E8E8E6" />
+      </View>
+    );
+  }
+
+  if (status === 'failed') {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyText}>기록을 불러오지 못했어요.</Text>
+        <Pressable style={styles.retryButton} onPress={loadMoments} hitSlop={8}>
+          <Text style={styles.retryText}>다시 시도</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.empty}>
+      <Text style={styles.emptyText}>
+        아직 기록이 없어요.{'\n'}기록 추가를 눌러 첫 곡을 남겨보세요.
+      </Text>
+    </View>
   );
 }
 
@@ -136,20 +195,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#E8E8E6',
   },
-  viewMode: {
+  addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    minHeight: 44,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#3A3936',
+    backgroundColor: '#FFFC36',
   },
-  viewModeText: {
+  addButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#B7B6B1',
+    color: '#181403',
   },
 
   /* Timeline */
@@ -199,5 +257,21 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: '#E8E8E6',
     textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#3A3936',
+  },
+  retryText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#B7B6B1',
+  },
+  footerLoading: {
+    marginTop: 16,
   },
 });

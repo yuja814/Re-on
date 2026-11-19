@@ -1,11 +1,7 @@
+import { requestLogout } from '@/services/auth-api';
 import { signOutFromGoogle } from '@/services/google-sign-in';
 import { clearSession } from '@/stores/auth-store';
-
-// 백엔드 연동(POST /api/v1/auth/logout) 전까지 사용하는 임시 구현
-async function requestLogout() {
-  // 실제 API 호출을 흉내 내기 위한 지연
-  await new Promise((resolve) => setTimeout(resolve, 300));
-}
+import { resetMoments } from '@/stores/moment-store';
 
 /**
  * 현재 기기의 Re:on 세션을 끝낸다.
@@ -17,5 +13,7 @@ export async function logout() {
   } finally {
     await signOutFromGoogle();
     await clearSession();
+    // 다른 계정으로 로그인했을 때 이전 기록이 보이지 않게 한다
+    resetMoments();
   }
 }

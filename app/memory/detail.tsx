@@ -1,12 +1,14 @@
 // app/memory/detail.tsx
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Image,
+  Linking,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -18,7 +20,13 @@ import {
 
 import { BottomTabBar } from '@/components/navigation/bottom-tab-bar';
 
-// 개별 음파 무빙 애니메이션 컴포넌트
+import { fetchMemory, markMemoryRead, type MemoryDetail } from '@/services/memory-api';
+import { ApiError } from '@/services/api-client';
+import { createPlaylist, resumePlaylist, youtubeStatus } from '@/services/youtube-api';
+import { beginYouTubeConnection } from '@/services/youtube-browser';
+import { useSession } from '@/stores/auth-store';
+
+// 음파 무빙 애니메이션 컴포넌트
 const AnimatedWaveBar = ({
   minHeight,
   maxHeight,
@@ -28,10 +36,9 @@ const AnimatedWaveBar = ({
   maxHeight: number;
   duration: number;
 }) => {
-  const animHeight = useRef(new Animated.Value(minHeight)).current;
+  const [animHeight] = useState(() => new Animated.Value(minHeight));
 
   useEffect(() => {
-    // 위아래 반복 애니메이션 실행
     const loopAnim = Animated.loop(
       Animated.sequence([
         Animated.timing(animHeight, {
@@ -58,71 +65,123 @@ const AnimatedWaveBar = ({
 
 export default function MemoryDetailScreen() {
   const router = useRouter();
-  // RE:PLAY 버튼 클릭 시 모달 상태 관리
-  const [isReplaying, setIsReplaying] = useState(false);
+  const params = useLocalSearchParams();
+  const memoryId = params.memoryId;
 
-  // 타임라인 데이터
-  const momentList = [
-    {
-      id: '1',
-      date: '07',
-      day: 'MON',
-      showDate: true,
-      songTitle: 'Blingy',
-      artist: 'NCT 127',
-      memo: '밸런스는 좋은데 여백이 많아',
-      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop',
-    },
-    {
-      id: '2',
-      date: '07',
-      day: 'MON',
-      showDate: false,
-      songTitle: 'Blingy',
-      artist: 'NCT 127',
-      memo: '밸런스는 좋은데 여백이 많아',
-      coverImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=400&auto=format&fit=crop',
-    },
-    {
-      id: '3',
-      date: '07',
-      day: 'MON',
-      showDate: true,
-      songTitle: 'Blingy',
-      artist: 'NCT 127',
-      memo: '밸런스는 좋은데 여백이 많아',
-      coverImage: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop',
-    },
-    {
-      id: '4',
-      date: '07',
-      day: 'MON',
-      showDate: false,
-      songTitle: 'Blingy',
-      artist: 'NCT 127',
-      memo: '밸런스는 좋은데 여백이 많아',
-      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop',
-    },
-    {
-      id: '5',
-      date: '07',
-      day: 'MON',
-      showDate: true,
-      songTitle: 'Blingy',
-      artist: 'NCT 127',
-      memo: '밸런스는 좋은데 여백이 많아',
-      coverImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=400&auto=format&fit=crop',
-    },
-  ];
+  const [detailData, setDetailData] = useState<MemoryDetail | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // RE:PLAY 버튼 클릭 시 모달 상태 관리
+  const [isReplaying, setIsReplaying] = useState<boolean>(false);
+
+  const session=useSession();
+  const [readError,setReadError]=useState('');
+  const [replayError,setReplayError]=useState('');
+  const [playlistUrl,setPlaylistUrl]=useState('');
+  const [playlistId,setPlaylistId]=useState('');
+  const [playlistCount,setPlaylistCount]=useState<number|null>(null);
+  const [needsConnection,setNeedsConnection]=useState(false);
+  const [canResume,setCanResume]=useState(false);
+
+  const goBackToMemoryHome = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/memory/home');
+    }
+  };
+  useEffect(()=>{
+    let active=true;
+    const load=async()=>{
+      if(session.status!=='signedIn')return;
+      if(typeof memoryId!=='string' || !/^[1-9][0-9]*$/.test(memoryId))throw new Error('Memory ID가 올바르지 않습니다.');
+      const data=await fetchMemory(memoryId);
+      if(!active)return;
+      setDetailData(data);
+      try{await markMemoryRead(memoryId);}catch{if(active)setReadError('읽음 처리를 완료하지 못했어요. 다시 시도해주세요.');}
+    };
+    void load().catch((reason:unknown)=>{if(active)setError(reason instanceof Error?reason.message:'Memory 조회 실패');})
+      .finally(()=>{if(active && session.status!=='loading')setIsLoading(false);});
+    return()=>{active=false;};
+  },[memoryId,session.status]);
+  const replay=async(resume=false)=>{
+    if(isReplaying || typeof memoryId!=='string')return;
+    setIsReplaying(true);setReplayError('');
+    try{
+      const status=await youtubeStatus();
+      if(!status.connected){setNeedsConnection(true);setReplayError('YouTube 계정을 연결해주세요.');return;}
+      setNeedsConnection(false);
+      const result=await (resume?resumePlaylist(memoryId):createPlaylist(memoryId));
+      setPlaylistUrl(result.playlistUrl);setPlaylistId(result.playlistId);setPlaylistCount(result.trackCount);setCanResume(false);
+    }catch(reason){
+      if(reason instanceof ApiError){
+        const partial=reason.details.playlistUrl;
+        if(partial)setPlaylistUrl(partial);
+        setNeedsConnection(['YOUTUBE_AUTH_REQUIRED','YOUTUBE_REAUTH_REQUIRED','YOUTUBE_NOT_CONNECTED'].includes(reason.code));
+        setCanResume(reason.code!=='PLAYLIST_RECOVERY_BLOCKED' && (Boolean(partial)||reason.code==='PLAYLIST_CREATION_INCOMPLETE'||reason.code==='NETWORK_ERROR'));
+        setReplayError(reason.message+(reason.details.confirmedTrackCount!==undefined?` (확인된 곡 ${reason.details.confirmedTrackCount}개)`:''));
+      }else setReplayError(reason instanceof Error?reason.message:'플레이리스트 요청에 실패했습니다.');
+    }finally{setIsReplaying(false);}
+  };
+  if(session.status==='signedOut')return <Redirect href="/user/login"/>;
+
+  // 날짜 포맷팅 헬퍼 함수
+  const formatDateRange = (start?: string, end?: string) => {
+    if (!start || !end) return '';
+    const fmt = (d: string) => d.replace(/-/g, '. ');
+    return `${fmt(start)} ~ ${fmt(end)}`;
+  };
+
+  // ISO 날짜에서 일(DD) 추출
+  const getDayStr = (isoDate: string) => {
+    if (!isoDate) return '';
+    const d = new Date(isoDate);
+    return String(d.getDate()).padStart(2, '0');
+  };
+
+  // ISO 날짜에서 요일(MON, TUE 등) 추출
+  const getDayNameStr = (isoDate: string) => {
+    if (!isoDate) return '';
+    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    return days[new Date(isoDate).getDay()];
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#FFFC36" />
+          <Text style={styles.loadingText}>Memory 상세 정보를 불러오고 있어요...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  if (error || !detailData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <Ionicons name="alert-circle-outline" size={40} color="#FF6B6B" />
+          <Text style={styles.errorText}>{error || '정보를 찾을 수 없습니다.'}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={goBackToMemoryHome}>
+            <Text style={styles.retryBtnText}>목록으로 돌아가기</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // RE:PLAY용 4분할 대표 커버 이미지 (없을 경우 기본 이미지 대용)
+  const mosaicCovers = detailData.moments.slice(0, 4).map(
+    () => 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop'
+  );
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* 메인 스크롤 영역 */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* 1. 상단 히어로 배너 영역 */}
+        {/* 1. 상단 히어로 배너 */}
         <View style={styles.heroContainer}>
           <Image
             source={{
@@ -130,74 +189,91 @@ export default function MemoryDetailScreen() {
             }}
             style={styles.heroImage}
           />
-          {/* 동그란 뒤로가기 버튼 */}
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={goBackToMemoryHome}>
             <Ionicons name="chevron-back" size={24} color="#000000" />
           </TouchableOpacity>
         </View>
 
-        {/* 2. 앨범 타이틀 및 상세 정보 영역 */}
+        {/* 2. 상세 설명 영역 */}
         <View style={styles.descriptionSection}>
           <View style={styles.titleHeaderRow}>
-            <Text style={styles.heroTitle}>NCT127과 함께한 7월</Text>
-            <View style={styles.badgeItem}>
-              <Text style={styles.badgeText}>🌙 저녁 62%</Text>
-            </View>
+            <Text style={styles.heroTitle}>{detailData.title}</Text>
+            {detailData.contexts[0] && (
+              <View style={styles.badgeItem}>
+                <Text style={styles.badgeText}>{detailData.contexts[0].label}</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.subInfoRow}>
             <Text style={styles.heroDateText}>
-              <Text style={{ fontWeight: '700' }}>13 Moment</Text> | 2026. 07. 03. ~ 2026. 07. 21.
+              <Text style={{ fontWeight: '700' }}>{detailData.momentCount} Moment</Text> |{' '}
+              {formatDateRange(detailData.startDate, detailData.endDate)}
             </Text>
-            <View style={styles.badgeItem}>
-              <Text style={styles.badgeText}>📍 체조경기장</Text>
-            </View>
+            {detailData.contexts[1] && (
+              <View style={styles.badgeItem}>
+                <Text style={styles.badgeText}>{detailData.contexts[1].label}</Text>
+              </View>
+            )}
           </View>
 
-          <Text style={styles.albumDescription}>
-            7월에는 NCT127의 음악을 많이 남겼어요. 특히 저녁 시간과 체조경기장을 중심으로 기록이 이어졌고, 메모에서도 ‘공연’, ‘집 가는 길’처럼 비슷한 순간들이 반복해서 나타났어요.
-          </Text>
+          <Text style={styles.albumDescription}>{detailData.description}</Text>
         </View>
-
-        {/* 3. 타임라인 리스트 영역 */}
+{/* 3. 타임라인 영역 */}
         <View style={styles.timelineContainer}>
-          {momentList.map((item) => (
-            <View key={item.id} style={styles.timelineItem}>
-              {/* 좌측 날짜 영역 */}
-              <View style={styles.dateContainer}>
-                {item.showDate ? (
-                  <>
-                    <Text style={styles.dateText}>{item.date}</Text>
-                    <Text style={styles.dayText}>{item.day}</Text>
-                  </>
-                ) : null}
-              </View>
+          {detailData.moments.map((item, idx) => {
+            // 동일 날짜 항목의 경우 첫 번째 항목에만 날짜 표시
+            const prevDate = idx > 0 ? getDayStr(detailData.moments[idx - 1].recordedAt) : null;
+            const currentDate = getDayStr(item.recordedAt);
+            const showDate = prevDate !== currentDate;
 
-              {/* 우측 Moment 카드 (isReplaying 시 딤 처리) */}
-              <View style={[styles.momentCard, isReplaying && styles.dimmedCard]}>
-                <Image source={{ uri: item.coverImage }} style={styles.cardCoverImage} />
-                <View style={styles.cardContent}>
-                  <Text style={styles.songTitle}>{item.songTitle}</Text>
-                  <Text style={styles.artistName}>{item.artist}</Text>
-                  <Text style={styles.memoText}>{item.memo}</Text>
+            return (
+              <View key={item.id} style={styles.timelineItem}>
+                {/* 좌측 날짜 표시 */}
+                <View style={styles.dateContainer}>
+                  {showDate ? (
+                    <>
+                      <Text style={styles.dateText}>{currentDate}</Text>
+                      <Text style={styles.dayText}>{getDayNameStr(item.recordedAt)}</Text>
+                    </>
+                  ) : null}
+                </View>
+
+                {/* 우측 Moment 카드 */}
+                <View style={[styles.momentCard, isReplaying && styles.dimmedCard]}>
+                  <Image
+                    source={{
+                      uri: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop',
+                    }}
+                    style={styles.cardCoverImage}
+                  />
+                  <View style={styles.cardContent}>
+                    <Text style={styles.songTitle}>{item.title}</Text>
+                    <Text style={styles.artistName}>{item.artist}</Text>
+                    {item.memo ? <Text style={styles.memoText}>{item.memo}</Text> : null}
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
 
+          {readError?<TouchableOpacity onPress={()=>{if(typeof memoryId==='string')void markMemoryRead(memoryId).then(()=>setReadError('')).catch(()=>{});}}><Text style={{color:'#FF6B6B'}}>{readError}</Text></TouchableOpacity>:null}
+          {replayError?<Text style={{color:'#FF6B6B',marginTop:16}}>{replayError}</Text>:null}
+          {needsConnection?<TouchableOpacity onPress={()=>{if(typeof memoryId==='string')void beginYouTubeConnection(memoryId).catch((reason:unknown)=>setReplayError(reason instanceof Error?reason.message:'연결 실패'));}}><Text style={{color:'#FFE680',padding:16}}>YouTube 권한 연결</Text></TouchableOpacity>:null}
+          {canResume?<TouchableOpacity disabled={isReplaying} onPress={()=>{void replay(true);}}><Text style={{color:'#FFE680',padding:16}}>기존 플레이리스트 복구</Text></TouchableOpacity>:null}
+          {playlistId?<TouchableOpacity onPress={()=>{void Linking.openURL('https://www.youtube.com/playlist?list='+encodeURIComponent(playlistId)).catch(()=>setReplayError('플레이리스트를 열지 못했어요.'));}}><Text style={{color:'#FFE680',padding:16}}>일반 YouTube에서 열기</Text></TouchableOpacity>:null}
+          {playlistUrl?<TouchableOpacity onPress={()=>{void Linking.openURL(playlistUrl).catch(()=>setReplayError('플레이리스트를 열지 못했어요.'));}}><Text style={{color:'#FFE680',padding:16}}>YouTube Music에서 열기{playlistCount!==null?` · ${playlistCount}곡`:''}</Text></TouchableOpacity>:null}
           {/* 4. RE:PLAY 카드 */}
           <TouchableOpacity
             style={styles.replayCard}
             activeOpacity={0.9}
-            onPress={() => setIsReplaying(!isReplaying)}
+            onPress={() => {void replay();}}
           >
             <View style={styles.replayLeft}>
-              {/* 4분할 앨범 커버 모자이크 */}
               <View style={styles.mosaicGrid}>
-                <Image source={{ uri: momentList[0].coverImage }} style={styles.mosaicImg} />
-                <Image source={{ uri: momentList[1].coverImage }} style={styles.mosaicImg} />
-                <Image source={{ uri: momentList[2].coverImage }} style={styles.mosaicImg} />
-                <Image source={{ uri: momentList[3].coverImage }} style={styles.mosaicImg} />
+                {mosaicCovers.map((uri, idx) => (
+                  <Image key={idx} source={{ uri }} style={styles.mosaicImg} />
+                ))}
               </View>
               <View style={styles.replayTextGroup}>
                 <Text style={styles.replayTitle}>RE: PLAY</Text>
@@ -209,21 +285,20 @@ export default function MemoryDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* 5. 리플레이 클릭 시 하단 플레이어 준비 모달 */}
+      {/* 5. 음파 애니메이션 모달 */}
       {isReplaying && (
         <TouchableOpacity
           activeOpacity={1}
           style={styles.modalOverlay}
-          onPress={() => setIsReplaying(false)}
+          disabled={true}
         >
           <View style={styles.modalSheet}>
-            {/* 음파 그래프 무빙 애니메이션 */}
             <View style={styles.waveContainer}>
               <AnimatedWaveBar minHeight={12} maxHeight={36} duration={450} />
               <AnimatedWaveBar minHeight={18} maxHeight={48} duration={350} />
               <AnimatedWaveBar minHeight={24} maxHeight={56} duration={500} />
-              <AnimatedWaveBar minHeight={18} maxHeight={48} duration={350} />
-              <AnimatedWaveBar minHeight={12} maxHeight={36} duration={450} />
+              <AnimatedWaveBar minHeight={14} maxHeight={32} duration={400} />
+              <AnimatedWaveBar minHeight={20} maxHeight={44} duration={300} />
             </View>
             <Text style={styles.modalTitle}>그때의 음악을 준비하고 있어요...</Text>
             <Text style={styles.modalSub}>잠시만 기다려주세요.</Text>
@@ -231,7 +306,6 @@ export default function MemoryDetailScreen() {
         </TouchableOpacity>
       )}
 
-      {/* 하단 탭 바 */}
       <BottomTabBar active="memory" />
     </SafeAreaView>
   );
@@ -244,6 +318,32 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 120,
+  },
+  centerContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  loadingText: { 
+    marginTop: 12, 
+    fontSize: 14,
+    color: '#95938B' 
+  },
+  errorText: { 
+    marginTop: 12, 
+    fontSize: 14, 
+    color: '#FF6B6B', 
+    marginBottom: 16 
+  },
+  retryBtn: { 
+    backgroundColor: '#1C1C1E', 
+    paddingHorizontal: 16, 
+    paddingVertical: 8, 
+    borderRadius: 12 
+  },
+  retryBtnText: { 
+    fontSize: 13, 
+    color: '#FFFFFF' 
   },
 
   /* 1. Hero Image */

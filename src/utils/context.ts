@@ -12,7 +12,9 @@ export type MomentContext = Pick<Moment, 'createdAt' | 'location' | 'coordinates
  */
 export function startContextCollection() {
   // 메모를 쓰는 동안 위치 권한 요청과 위치 조회를 미리 진행한다
-  const placePromise = getCurrentPlace();
+  const placePromise = process.env.EXPO_PUBLIC_CAPTURE_LOCATION === 'false'
+    ? Promise.resolve(undefined)
+    : getCurrentPlace();
 
   return {
     async collect(): Promise<MomentContext> {
